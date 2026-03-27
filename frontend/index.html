@@ -493,40 +493,47 @@
       <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
 
         <div class="text-center mb-6">
-          <h2 id="auth-heading" class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
+          <h2 class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
           <p class="text-osa-muted text-xs">Stay in control</p>
         </div>
 
-        <!-- Error -->
-        <div id="auth-error" class="hidden bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4">
-          <p id="auth-error-text" class="text-red-400 text-xs text-center leading-relaxed"></p>
+        <!-- Feedback message -->
+        <div id="auth-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
+          <p id="auth-error-text" class="text-xs text-center leading-relaxed"></p>
         </div>
 
         <!-- Email -->
-        <input id="auth-email" type="email" placeholder="Email address" autocomplete="email"
+        <input id="email" type="email" placeholder="Email address" autocomplete="email"
           class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3"
-          onkeydown="if(event.key==='Enter') document.getElementById('auth-password').focus()" />
+                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3" />
 
         <!-- Password -->
-        <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password"
+        <input id="password" type="password" placeholder="Password" autocomplete="current-password"
           class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4"
-          onkeydown="if(event.key==='Enter') handleAuth()" />
+                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4" />
 
-        <!-- Submit -->
-        <button id="auth-submit" onclick="handleAuth()"
+        <!-- Login button -->
+        <button id="loginBtn"
           class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-                 active:scale-95 transition-all duration-200 hover:bg-osa-accentDark">
+                 active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mb-3">
           Sign In
+        </button>
+
+        <!-- Divider -->
+        <div class="flex items-center gap-3 mb-3">
+          <div class="flex-1 h-px bg-osa-border"></div>
+          <span class="text-osa-muted text-xs">or</span>
+          <div class="flex-1 h-px bg-osa-border"></div>
+        </div>
+
+        <!-- Signup button -->
+        <button id="signupBtn"
+          class="w-full py-3.5 rounded-2xl border border-osa-border text-osa-muted text-sm font-semibold
+                 active:scale-95 transition-all duration-200 hover:border-osa-accent hover:text-osa-accent">
+          Create Account
         </button>
       </div>
 
-      <!-- Toggle -->
-      <p id="auth-toggle" class="text-center text-osa-muted text-xs mt-6">
-        Don't have an account?
-        <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>
-      </p>
     </div>
   </div>
 

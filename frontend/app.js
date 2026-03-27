@@ -6,16 +6,24 @@ const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
-let authMode = 'login';
+// Show inline feedback (red = error, green = success info)
+function showAuthMessage(msg, isSuccess = false) {
+  const wrap = document.getElementById('auth-error');
+  const text = document.getElementById('auth-error-text');
+  text.textContent = msg;
+  wrap.className = isSuccess
+    ? 'bg-green-950/40 border border-green-800/50 rounded-xl px-4 py-2.5 mb-4'
+    : 'bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4';
+  text.className = isSuccess
+    ? 'text-green-400 text-xs text-center leading-relaxed'
+    : 'text-red-400 text-xs text-center leading-relaxed';
+  wrap.classList.remove('hidden');
+}
 
-function showAuthScreen() {
-  const screen = document.getElementById('auth-screen');
-  screen.style.opacity = '0';
-  screen.classList.remove('hidden');
-  requestAnimationFrame(() => {
-    screen.style.transition = 'opacity 0.35s ease';
-    screen.style.opacity = '1';
-  });
+function setButtonLoading(btn, loading, label) {
+  btn.disabled = loading;
+  btn.style.opacity = loading ? '0.6' : '1';
+  btn.textContent = label;
 }
 
 function hideAuthScreen() {
@@ -26,89 +34,60 @@ function hideAuthScreen() {
   setTimeout(() => screen.classList.add('hidden'), 400);
 }
 
-function toggleAuthMode() {
-  authMode = authMode === 'login' ? 'signup' : 'login';
-  const isSignup = authMode === 'signup';
-  document.getElementById('auth-heading').textContent = isSignup ? 'Create account' : 'Welcome back';
-  document.getElementById('auth-submit').textContent = isSignup ? 'Create Account' : 'Sign In';
-  document.getElementById('auth-toggle').innerHTML = isSignup
-    ? `Already have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Sign in</button>`
-    : `Don't have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>`;
-  document.getElementById('auth-password').autocomplete = isSignup ? 'new-password' : 'current-password';
-  document.getElementById('auth-error').classList.add('hidden');
-}
+// ─── login ────────────────────────────────────────────────────────────────────
 
-function setAuthLoading(loading) {
-  const btn = document.getElementById('auth-submit');
-  btn.disabled = loading;
-  btn.style.opacity = loading ? '0.6' : '1';
-  btn.textContent = loading
-    ? (authMode === 'login' ? 'Signing in...' : 'Creating account...')
-    : (authMode === 'login' ? 'Sign In' : 'Create Account');
-}
-
-function showAuthError(msg, isInfo = false) {
-  const wrap = document.getElementById('auth-error');
-  const text = document.getElementById('auth-error-text');
-  text.textContent = msg;
-  wrap.className = isInfo
-    ? 'bg-green-950/40 border border-green-800/50 rounded-xl px-4 py-2.5 mb-4'
-    : 'bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4';
-  text.className = isInfo ? 'text-green-400 text-xs text-center leading-relaxed' : 'text-red-400 text-xs text-center leading-relaxed';
-  wrap.classList.remove('hidden');
-}
-
-async function handleAuth() {
-  const email = document.getElementById('auth-email').value.trim();
-  const password = document.getElementById('auth-password').value;
+async function login(email, password) {
+  const btn = document.getElementById('loginBtn');
+  setButtonLoading(btn, true, 'Signing in...');
   document.getElementById('auth-error').classList.add('hidden');
 
-  if (!email || !password) {
-    showAuthError('Please enter your email and password.');
-    return;
-  }
+  const { data, error } = await supabase.auth.signInWithPassword({
+    email: email,
+    password: password
+  });
 
-  setAuthLoading(true);
-
-  if (authMode === 'login') {
-    const { data, error } = await supabase.auth.signInWithPassword({
-      email: email,
-      password: password
-    });
-    if (error) {
-      console.error('Login error:', error);
-      showAuthError(error.message);
-      setAuthLoading(false);
-    } else {
-      console.log('Login success:', data);
-      hideAuthScreen();
-      initApp();
-    }
+  if (error) {
+    console.error('Login error:', error);
+    showAuthMessage(error.message);
+    setButtonLoading(btn, false, 'Sign In');
   } else {
-    const { data, error } = await supabase.auth.signUp({
-      email: email,
-      password: password
-    });
-    if (error) {
-      console.error('Signup error:', error);
-      showAuthError(error.message);
-      setAuthLoading(false);
-    } else {
-      console.log('Signup success:', data);
-      setAuthLoading(false);
-      showAuthError('Account created! Check your email to confirm, then sign in.', true);
-      authMode = 'login';
-      document.getElementById('auth-heading').textContent = 'Welcome back';
-      document.getElementById('auth-submit').textContent = 'Sign In';
-      document.getElementById('auth-toggle').innerHTML = `Don't have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>`;
-    }
+    console.log('Login success:', data);
+    hideAuthScreen();
+    initApp();
   }
 }
+
+// ─── signup ───────────────────────────────────────────────────────────────────
+
+async function signup(email, password) {
+  const btn = document.getElementById('signupBtn');
+  setButtonLoading(btn, true, 'Creating account...');
+  document.getElementById('auth-error').classList.add('hidden');
+
+  const { data, error } = await supabase.auth.signUp({
+    email: email,
+    password: password
+  });
+
+  if (error) {
+    console.error('Signup error:', error);
+    showAuthMessage(error.message);
+    setButtonLoading(btn, false, 'Create Account');
+  } else {
+    console.log('Signup success:', data);
+    setButtonLoading(btn, false, 'Create Account');
+    showAuthMessage('Account created. Check your email to confirm, then sign in.', true);
+  }
+}
+
+// ─── logout ───────────────────────────────────────────────────────────────────
 
 async function logout() {
   await supabase.auth.signOut();
   location.reload();
 }
+
+// ─── App init (runs once after login) ─────────────────────────────────────────
 
 let _appInited = false;
 
@@ -130,19 +109,39 @@ function initApp() {
   startNotificationSchedule();
 }
 
+// ─── Auth init (runs on page load) ────────────────────────────────────────────
+
 async function initAuth() {
-  const { data: { user } } = await supabase.auth.getUser();
-  if (user) {
+  // Check for existing session
+  const { data: { session } } = await supabase.auth.getSession();
+  if (session) {
     hideAuthScreen();
     initApp();
   }
-  // auth screen is already visible by default
 
-  supabase.auth.onAuthStateChange((_event, session) => {
-    if (session?.user) {
-      hideAuthScreen();
-      initApp();
-    }
+  // Connect buttons via event listeners
+  document.getElementById('loginBtn').addEventListener('click', () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showAuthMessage('Please enter your email and password.'); return; }
+    login(email, password);
+  });
+
+  document.getElementById('signupBtn').addEventListener('click', () => {
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    if (!email || !password) { showAuthMessage('Please enter your email and password.'); return; }
+    signup(email, password);
+  });
+
+  // Submit on Enter key in password field
+  document.getElementById('password').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('loginBtn').click();
+  });
+
+  // Move focus from email → password on Enter
+  document.getElementById('email').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') document.getElementById('password').focus();
   });
 }
 // ─── Urge Journal ─────────────────────────────────────────────────────────────
