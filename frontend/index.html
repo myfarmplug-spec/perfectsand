@@ -23,6 +23,7 @@
     }
   </script>
 </head>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
 <body class="bg-osa-bg text-osa-text min-h-screen flex flex-col">
 
   <!-- Header -->
@@ -40,6 +41,10 @@
         <span id="streak-count" class="text-2xl font-bold text-osa-accent">0</span>
         <span class="text-xs text-osa-muted tracking-widest uppercase">streak</span>
       </div>
+      <button id="logout-btn" onclick="logout()" class="hidden flex flex-col items-center bg-osa-card border border-osa-border rounded-2xl px-3 py-2 hover:border-red-900/50 transition-colors">
+        <span class="text-base">↩</span>
+        <span class="text-xs text-osa-muted tracking-widest uppercase">out</span>
+      </button>
     </div>
   </header>
 
@@ -471,6 +476,57 @@
       <button onclick="finishOnboarding()" class="w-full text-osa-muted text-xs tracking-widest uppercase py-2">
         Skip
       </button>
+    </div>
+  </div>
+
+  <!-- ─── AUTH SCREEN ────────────────────────────────────────────── -->
+  <div id="auth-screen" class="fixed inset-0 z-[200] flex flex-col items-center justify-center px-6" style="background:#0a0a0a;">
+    <div class="w-full max-w-xs">
+
+      <!-- Branding -->
+      <div class="text-center mb-10">
+        <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
+        <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+      </div>
+
+      <!-- Card -->
+      <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
+
+        <div class="text-center mb-6">
+          <h2 id="auth-heading" class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
+          <p class="text-osa-muted text-xs">Stay in control</p>
+        </div>
+
+        <!-- Error -->
+        <div id="auth-error" class="hidden bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4">
+          <p id="auth-error-text" class="text-red-400 text-xs text-center leading-relaxed"></p>
+        </div>
+
+        <!-- Email -->
+        <input id="auth-email" type="email" placeholder="Email address" autocomplete="email"
+          class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3"
+          onkeydown="if(event.key==='Enter') document.getElementById('auth-password').focus()" />
+
+        <!-- Password -->
+        <input id="auth-password" type="password" placeholder="Password" autocomplete="current-password"
+          class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4"
+          onkeydown="if(event.key==='Enter') handleAuth()" />
+
+        <!-- Submit -->
+        <button id="auth-submit" onclick="handleAuth()"
+          class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
+                 active:scale-95 transition-all duration-200 hover:bg-osa-accentDark">
+          Sign In
+        </button>
+      </div>
+
+      <!-- Toggle -->
+      <p id="auth-toggle" class="text-center text-osa-muted text-xs mt-6">
+        Don't have an account?
+        <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>
+      </p>
     </div>
   </div>
 

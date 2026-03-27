@@ -4,27 +4,132 @@ const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZS
 
 const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
 
-// ─── enable login ───
-async function signUp(email, password) {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password
+// ─── Auth ─────────────────────────────────────────────────────────────────────
+
+let authMode = 'login';
+
+function showAuthScreen() {
+  const screen = document.getElementById('auth-screen');
+  screen.style.opacity = '0';
+  screen.classList.remove('hidden');
+  requestAnimationFrame(() => {
+    screen.style.transition = 'opacity 0.35s ease';
+    screen.style.opacity = '1';
   });
-  if (error) alert(error.message);
-  else alert("Check your email to confirm signup");
 }
 
-// ─── Supabase User Helpers ───
-async function getUser() {
-  const { data } = await supabase.auth.getUser();
-  return data.user;
+function hideAuthScreen() {
+  const screen = document.getElementById('auth-screen');
+  screen.style.pointerEvents = 'none';
+  screen.style.transition = 'opacity 0.4s ease';
+  screen.style.opacity = '0';
+  setTimeout(() => screen.classList.add('hidden'), 400);
 }
 
-// For quick testing
-async function quickLogin() {
-  await supabase.auth.signInWithPassword({
-    email: "test@test.com",
-    password: "123456"
+function toggleAuthMode() {
+  authMode = authMode === 'login' ? 'signup' : 'login';
+  const isSignup = authMode === 'signup';
+  document.getElementById('auth-heading').textContent = isSignup ? 'Create account' : 'Welcome back';
+  document.getElementById('auth-submit').textContent = isSignup ? 'Create Account' : 'Sign In';
+  document.getElementById('auth-toggle').innerHTML = isSignup
+    ? `Already have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Sign in</button>`
+    : `Don't have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>`;
+  document.getElementById('auth-password').autocomplete = isSignup ? 'new-password' : 'current-password';
+  document.getElementById('auth-error').classList.add('hidden');
+}
+
+function setAuthLoading(loading) {
+  const btn = document.getElementById('auth-submit');
+  btn.disabled = loading;
+  btn.style.opacity = loading ? '0.6' : '1';
+  btn.textContent = loading
+    ? (authMode === 'login' ? 'Signing in...' : 'Creating account...')
+    : (authMode === 'login' ? 'Sign In' : 'Create Account');
+}
+
+function showAuthError(msg, isInfo = false) {
+  const wrap = document.getElementById('auth-error');
+  const text = document.getElementById('auth-error-text');
+  text.textContent = msg;
+  wrap.className = isInfo
+    ? 'bg-green-950/40 border border-green-800/50 rounded-xl px-4 py-2.5 mb-4'
+    : 'bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4';
+  text.className = isInfo ? 'text-green-400 text-xs text-center leading-relaxed' : 'text-red-400 text-xs text-center leading-relaxed';
+  wrap.classList.remove('hidden');
+}
+
+async function handleAuth() {
+  const email = document.getElementById('auth-email').value.trim();
+  const password = document.getElementById('auth-password').value;
+  document.getElementById('auth-error').classList.add('hidden');
+
+  if (!email || !password) {
+    showAuthError('Please enter your email and password.');
+    return;
+  }
+
+  setAuthLoading(true);
+
+  try {
+    if (authMode === 'login') {
+      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      if (error) { showAuthError(error.message); setAuthLoading(false); }
+      // success → onAuthStateChange fires → hideAuthScreen + initApp
+    } else {
+      const { error } = await supabase.auth.signUp({ email, password });
+      if (error) { showAuthError(error.message); setAuthLoading(false); return; }
+      setAuthLoading(false);
+      showAuthError('Account created! Check your email to confirm, then sign in.', true);
+      // Switch back to login mode
+      authMode = 'login';
+      document.getElementById('auth-heading').textContent = 'Welcome back';
+      document.getElementById('auth-submit').textContent = 'Sign In';
+      document.getElementById('auth-toggle').innerHTML = `Don't have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>`;
+    }
+  } catch {
+    showAuthError('Something went wrong. Please try again.');
+    setAuthLoading(false);
+  }
+}
+
+async function logout() {
+  await supabase.auth.signOut();
+  location.reload();
+}
+
+let _appInited = false;
+
+function initApp() {
+  if (_appInited) return;
+  _appInited = true;
+
+  document.getElementById('logout-btn').classList.remove('hidden');
+  initTrial();
+  initDayStart();
+  initOnboarding();
+  showTab('dashboard');
+  renderStreak();
+  renderStats();
+  document.getElementById('token-count').textContent = getTokens();
+  renderTrialBanner();
+  startDayCountdown();
+  if (Notification.permission !== 'granted') Notification.requestPermission();
+  startNotificationSchedule();
+}
+
+async function initAuth() {
+  const { data: { user } } = await supabase.auth.getUser();
+  if (user) {
+    hideAuthScreen();
+    initApp();
+  }
+  // auth screen is already visible by default
+
+  supabase.auth.onAuthStateChange((_event, session) => {
+    if (session?.user) {
+      hideAuthScreen();
+      initApp();
+    }
   });
 }
 // ─── Urge Journal ─────────────────────────────────────────────────────────────
@@ -325,11 +430,7 @@ function openUrgeForm() {
 
 // Step 2: Form submitted → start timer
 async function handleTrigger(trigger, emotion) {
-  const user = await getUser();
-  if (!user) {
-    alert("Please login first");
-    return;
-  }
+  const { data: { user } } = await supabase.auth.getUser();
   const { data, error } = await supabase
     .from("urges")
     .insert([
@@ -974,15 +1075,5 @@ function renderTrialBanner() {
 // ─── Init ─────────────────────────────────────────────────────────────────────
 
 document.addEventListener('DOMContentLoaded', () => {
-  initTrial();
-  initDayStart();
-  initOnboarding();
-  showTab('dashboard');
-  renderStreak();
-  renderStats();
-  document.getElementById('token-count').textContent = getTokens();
-  renderTrialBanner();
-  startDayCountdown();
-  if (Notification.permission !== 'granted') Notification.requestPermission();
-  startNotificationSchedule();
+  initAuth();
 });
