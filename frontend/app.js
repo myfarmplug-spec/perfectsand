@@ -617,6 +617,41 @@ const urgeMessages = [
   'One minute at a time.',
 ];
 
+async function getUserHistory() {
+  const { data: userData } = await supabaseClient.auth.getUser();
+  const userId = userData?.user?.id;
+  if (!userId) return [];
+  const { data } = await supabaseClient
+    .from('urges')
+    .select('trigger, emotion, resisted, created_at')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: false })
+    .limit(10);
+  return data || [];
+}
+
+async function generateOsaBattleMessage(trigger, emotion) {
+  try {
+    const history = await getUserHistory();
+    const res = await fetch('https://perfectsand.onrender.com/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        message: `User is experiencing an urge RIGHT NOW. Trigger: ${trigger}. Emotion: ${emotion}. Respond immediately, short and direct.`,
+        history,
+      }),
+    });
+    const data = await res.json();
+    if (data.reply) {
+      const el = document.getElementById('urge-message');
+      el.style.opacity = '0';
+      setTimeout(() => { el.textContent = data.reply; el.style.opacity = '1'; }, 300);
+    }
+  } catch {
+    // fallback — static message already set
+  }
+}
+
 let urgeInterval = null;
 let messageInterval = null;
 let urgeSeconds = 600;
@@ -690,6 +725,7 @@ async function handleTrigger(trigger, emotion) {
   document.getElementById('urge-timer').textContent = formatTime(urgeSeconds);
   document.getElementById('urge-message').textContent = urgeMessages[0];
   document.getElementById('urge-mode').classList.remove('hidden');
+  generateOsaBattleMessage(trigger, emotion);
   let msgIndex = 0;
   urgeInterval = setInterval(() => {
     urgeSeconds--;
@@ -1086,18 +1122,7 @@ async function sendMessage() {
   loadingWrapper.querySelector('div').style.opacity = '0.5';
 
   try {
-    const { data: userData } = await supabaseClient.auth.getUser();
-    const userId = userData?.user?.id;
-    let history = [];
-    if (userId) {
-      const { data: urgeData } = await supabaseClient
-        .from('urges')
-        .select('trigger, emotion, resisted, created_at')
-        .eq('user_id', userId)
-        .order('created_at', { ascending: false })
-        .limit(10);
-      if (urgeData) history = urgeData;
-    }
+    const history = await getUserHistory();
 
     const res = await fetch('https://perfectsand.onrender.com/chat', {
       method: 'POST',
