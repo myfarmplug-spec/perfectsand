@@ -1,8 +1,8 @@
 services:
   - type: web
-    name: perfect-sand-backend
+    name: perfectsand-backend
     env: node
-    rootDir: .
+    rootDir: backend
     buildCommand: npm install
     startCommand: npm start
     autoDeploy: true
