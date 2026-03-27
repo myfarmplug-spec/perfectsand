@@ -7,6 +7,7 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const OSA_FALLBACK_MESSAGE = 'Stay with it. This will pass.';
+const INTERVENTION_INSERT_DEFAULTS = { trigger: 'alone in room', emotion: 'tempted' };
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
@@ -232,6 +233,30 @@ Maximum 3 sentences. Direct. No fluff. No emojis.`,
   } catch (error) {
     console.error(error);
     res.status(500).json({ insight: 'Stay consistent. Every logged urge is progress.' });
+  }
+});
+
+app.post('/intervention', async (req, res) => {
+  try {
+    const {
+      userId = null,
+      trigger = INTERVENTION_INSERT_DEFAULTS.trigger,
+      emotion = INTERVENTION_INSERT_DEFAULTS.emotion,
+    } = req.body;
+
+    const client = getOpenAIClient();
+    const history = await fetchUrgeMemory(userId);
+    const memory = buildReadableMemory(history);
+    const prompt = buildOsaPrompt({ memory, trigger, emotion });
+    const aiResponse = await generateOsaReply(client, prompt);
+
+    res.json({
+      message: aiResponse.message || OSA_FALLBACK_MESSAGE,
+      audio: aiResponse.audio || null,
+    });
+  } catch (error) {
+    console.error(error);
+    res.json({ message: OSA_FALLBACK_MESSAGE, audio: null });
   }
 });
 
