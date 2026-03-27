@@ -181,7 +181,7 @@
         class="flex-1 bg-osa-card border border-osa-border rounded-2xl px-4 py-3 text-osa-text text-sm
                placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200"
         onkeydown="if(event.key==='Enter') sendMessage()" />
-      <button onclick="sendMessage()"
+      <button id="chatSendBtn" onclick="sendMessage()"
         class="bg-osa-accent text-black font-bold rounded-2xl px-5 py-3 text-sm tracking-wide
                active:scale-95 transition-all duration-150 hover:bg-osa-accentDark">
         Send

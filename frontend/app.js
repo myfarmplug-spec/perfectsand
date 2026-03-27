@@ -49,6 +49,24 @@ function wait(ms) {
   return new Promise((resolve) => setTimeout(resolve, ms));
 }
 
+async function runWithRetry(task) {
+  let lastError = null;
+
+  for (let attempt = 1; attempt <= SESSION_SAVE_MAX_ATTEMPTS; attempt += 1) {
+    try {
+      return await task();
+    } catch (error) {
+      lastError = error;
+
+      if (attempt < SESSION_SAVE_MAX_ATTEMPTS) {
+        await wait(250);
+      }
+    }
+  }
+
+  throw lastError || new Error('Request failed.');
+}
+
 function getVoiceEnabled() {
   return document.getElementById('voiceToggle')?.checked ?? true;
 }
@@ -179,7 +197,6 @@ async function login(email, password) {
     showAuthMessage(error.message);
     setButtonLoading(btn, false, 'Sign In');
   } else {
-    console.log('Login success:', data);
     enterApp();
   }
 }
@@ -335,10 +352,15 @@ function showProfileScreen() {
 
   populateDayDropdown();
 
+  if (screen.dataset.bound === 'true') {
+    return;
+  }
+
   document.getElementById('profile-dob-month').addEventListener('change', calcAge);
   document.getElementById('profile-dob-day').addEventListener('change', calcAge);
   document.getElementById('profile-dob-year').addEventListener('input', calcAge);
   document.getElementById('profile-save-btn').addEventListener('click', saveProfile);
+  screen.dataset.bound = 'true';
 }
 
 async function saveProfile() {
@@ -496,12 +518,14 @@ function saveUrgeLog(log) {
 
 function createInterventionState() {
   return {
+    id: null,
     trigger: INTERVENTION_INSERT_DEFAULTS.trigger,
     emotion: INTERVENTION_INSERT_DEFAULTS.emotion,
     action: null,
+    insertPromise: null,
     startTime: null,
     resisted: false,
-    sessionSaved: false,
+    logged: false,
   };
 }
 
@@ -938,13 +962,11 @@ function buildInterventionRequest(userId) {
   };
 }
 
-async function requestInterventionMessage({ userId, trigger, emotion, history }) {
+async function requestInterventionMessage({ userId, trigger, emotion }) {
   const data = await postJson('/chat', {
     userId,
     trigger,
     emotion,
-    message: 'User is experiencing an urge right now. Respond immediately.',
-    history,
   });
 
   return {
@@ -953,17 +975,108 @@ async function requestInterventionMessage({ userId, trigger, emotion, history })
   };
 }
 
-async function syncInterventionState(userId, sessionId) {
-  try {
-    const urge = buildInterventionRequest(userId);
-    if (sessionId !== interventionSessionId) return;
+function applyInterventionRecord(record, sessionId = interventionSessionId) {
+  if (!record || sessionId !== interventionSessionId) {
+    return;
+  }
 
-    const history = await getUserHistory();
+  currentUrge.id = record.id || null;
+  currentUrge.logged = Boolean(record.id);
+  currentUrge.resisted = Boolean(record.resisted);
+}
+
+async function insertInterventionUrge(userId, resisted = false, sessionId = interventionSessionId) {
+  const urgePayload = {
+    user_id: userId,
+    trigger: currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+    emotion: currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+    resisted: Boolean(resisted),
+    created_at: new Date().toISOString(),
+  };
+
+  const insertPromise = runWithRetry(async () => {
+    const { data, error } = await supabaseClient
+      .from('urges')
+      .insert([urgePayload])
+      .select('id, trigger, emotion, resisted, created_at')
+      .single();
+
+    if (error) throw error;
+    return data;
+  }).then((insertedUrge) => {
+    applyInterventionRecord(insertedUrge, sessionId);
+    return insertedUrge;
+  }).finally(() => {
+    if (sessionId === interventionSessionId && currentUrge.insertPromise === insertPromise) {
+      currentUrge.insertPromise = null;
+    }
+  });
+
+  if (sessionId === interventionSessionId) {
+    currentUrge.insertPromise = insertPromise;
+  }
+
+  return insertPromise;
+}
+
+async function ensureInterventionUrge(userId, sessionId = interventionSessionId) {
+  if (currentUrge.id) {
+    return currentUrge.id;
+  }
+
+  if (currentUrge.insertPromise) {
+    const insertedUrge = await currentUrge.insertPromise;
+    return insertedUrge?.id || null;
+  }
+
+  const insertedUrge = await insertInterventionUrge(userId, false, sessionId);
+  await renderStats();
+  return insertedUrge?.id || null;
+}
+
+async function updateLatestUrgeResisted(userId, sessionId = interventionSessionId) {
+  const urgeId = await ensureInterventionUrge(userId, sessionId);
+
+  if (!urgeId) {
+    const fallbackUrge = await insertInterventionUrge(userId, true, sessionId);
+    currentUrge.resisted = true;
+    return fallbackUrge;
+  }
+
+  const updatedUrge = await runWithRetry(async () => {
+    const { data, error } = await supabaseClient
+      .from('urges')
+      .update({ resisted: true })
+      .eq('id', urgeId)
+      .eq('user_id', userId)
+      .select('id, trigger, emotion, resisted, created_at')
+      .single();
+
+    if (error) throw error;
+    return data;
+  });
+
+  applyInterventionRecord(updatedUrge || { id: urgeId, resisted: true }, sessionId);
+  return updatedUrge;
+}
+
+async function syncInterventionState(userId, sessionId) {
+  const urge = buildInterventionRequest(userId);
+
+  try {
+    await insertInterventionUrge(userId, false, sessionId);
+    if (sessionId !== interventionSessionId) return;
+    await renderStats();
+  } catch (error) {
+    if (sessionId !== interventionSessionId) return;
+    console.error('Unable to create intervention urge:', error);
+  }
+
+  try {
     const response = await requestInterventionMessage({
       userId,
-      trigger: urge?.trigger || currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
-      emotion: urge?.emotion || currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
-      history,
+      trigger: urge.trigger,
+      emotion: urge.emotion,
     });
     if (sessionId !== interventionSessionId) return;
 
@@ -1003,48 +1116,15 @@ async function startBattleMode() {
   void syncInterventionState(user.id, interventionSessionId);
 }
 
-async function saveInterventionSession(resisted) {
-  if (currentUrge.sessionSaved) return;
-
-  const { data: { user } } = await supabaseClient.auth.getUser();
-  if (!user) throw new Error('No user available to save the urge.');
-
-  const sessionPayload = {
-    user_id: user.id,
-    trigger: currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
-    emotion: currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
-    resisted: Boolean(resisted),
-    created_at: new Date().toISOString(),
-  };
-
-  let lastError = null;
-  for (let attempt = 1; attempt <= SESSION_SAVE_MAX_ATTEMPTS; attempt += 1) {
-    const { error } = await supabaseClient
-      .from('urges')
-      .insert([sessionPayload]);
-
-    if (!error) {
-      currentUrge.resisted = Boolean(resisted);
-      currentUrge.sessionSaved = true;
-      return;
-    }
-
-    lastError = error;
-
-    if (attempt < SESSION_SAVE_MAX_ATTEMPTS) {
-      await wait(250);
-    }
-  }
-
-  throw lastError || new Error('Unable to save intervention session.');
-}
-
 async function dismissIntervention() {
   clearInterventionTimer();
 
-  if (currentUrge.startTime && !currentUrge.sessionSaved) {
+  if (currentUrge.startTime) {
     try {
-      await saveInterventionSession(false);
+      const { data: { user } } = await supabaseClient.auth.getUser();
+      if (user && !currentUrge.id) {
+        await ensureInterventionUrge(user.id, interventionSessionId);
+      }
     } catch (error) {
       console.error('Unable to save intervention session:', error);
     }
@@ -1073,7 +1153,10 @@ async function resistIntervention() {
   if (dismissBtn) dismissBtn.disabled = true;
 
   try {
-    await saveInterventionSession(true);
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (!user) throw new Error('No user available to update the urge.');
+
+    await updateLatestUrgeResisted(user.id, interventionSessionId);
     setState('In Control');
     setInterventionStatus('You stayed in control.', 'success');
     setInterventionMessage('You stayed in control.');
@@ -1423,7 +1506,15 @@ function appendMessage(text, sender) {
     bubble.textContent = text;
   } else {
     bubble.className = 'bg-osa-bot border border-osa-border text-osa-text rounded-2xl rounded-tl-sm px-4 py-3 max-w-xs text-sm leading-relaxed';
-    bubble.innerHTML = `<span class="block text-osa-accent text-xs font-semibold mb-1 tracking-wide uppercase">Osa</span>${text}`;
+    const label = document.createElement('span');
+    label.className = 'block text-osa-accent text-xs font-semibold mb-1 tracking-wide uppercase';
+    label.textContent = 'Osa';
+
+    const body = document.createElement('span');
+    body.className = 'whitespace-pre-line';
+    body.textContent = text;
+
+    bubble.append(label, body);
   }
 
   wrapper.appendChild(bubble);
@@ -1434,7 +1525,8 @@ function appendMessage(text, sender) {
 
 function setInputLocked(locked) {
   const input = document.getElementById('chat-input');
-  const btn = document.querySelector('[onclick="sendMessage()"]');
+  const btn = document.getElementById('chatSendBtn');
+  if (!input || !btn) return;
   input.disabled = locked;
   btn.disabled = locked;
   btn.style.opacity = locked ? '0.5' : '1';
@@ -1458,13 +1550,12 @@ async function sendMessage() {
   loadingWrapper.querySelector('div').style.opacity = '0.5';
 
   try {
-    const history = await getUserHistory();
     const { data: { user } } = await supabaseClient.auth.getUser();
+    const context = getLiveInterventionContext();
     const data = await postJson('/chat', {
       userId: user?.id,
-      ...getLiveInterventionContext(),
-      message: text,
-      history,
+      trigger: context.trigger,
+      emotion: text || context.emotion,
     });
     loadingWrapper.remove();
 
