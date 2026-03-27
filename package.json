@@ -2,11 +2,12 @@
   "name": "perfectsand-render-root",
   "version": "1.0.0",
   "private": true,
+  "main": "server.js",
   "engines": {
     "node": "18.x"
   },
   "scripts": {
     "postinstall": "npm --prefix backend install",
-    "start": "npm --prefix backend start"
+    "start": "node server.js"
   }
 }
