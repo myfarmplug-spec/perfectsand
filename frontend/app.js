@@ -58,36 +58,113 @@ async function login(email, password) {
   }
 }
 
-// ─── signup ───────────────────────────────────────────────────────────────────
+// ─── signup with profile ──────────────────────────────────────────────────────
 
-async function signup(email, password) {
-  const btn = document.getElementById('signupBtn');
+function populateDayDropdownSignup() {
+  const daySelect = document.getElementById('su-dob-day');
+  if (daySelect.options.length > 1) return;
+  for (let d = 1; d <= 31; d++) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    daySelect.appendChild(opt);
+  }
+}
+
+function calcAgeSignup() {
+  const month = parseInt(document.getElementById('su-dob-month').value);
+  const day   = parseInt(document.getElementById('su-dob-day').value);
+  const year  = parseInt(document.getElementById('su-dob-year').value);
+  const el    = document.getElementById('su-age-display');
+  if (!month || !day || !year || year < 1920 || year > new Date().getFullYear()) {
+    el.textContent = '—'; return;
+  }
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age--;
+  el.textContent = age >= 0 ? age : '—';
+}
+
+function showSignupMessage(msg, isSuccess = false) {
+  const wrap = document.getElementById('su-error');
+  const text = document.getElementById('su-error-text');
+  text.textContent = msg;
+  wrap.className = isSuccess
+    ? 'bg-green-950/40 border border-green-800/50 rounded-xl px-4 py-2.5 mb-4'
+    : 'bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4';
+  text.className = isSuccess
+    ? 'text-green-400 text-xs text-center leading-relaxed'
+    : 'text-red-400 text-xs text-center leading-relaxed';
+  wrap.classList.remove('hidden');
+}
+
+async function signupWithProfile() {
+  const fullName = document.getElementById('su-fullname').value.trim();
+  const codeName = document.getElementById('su-codename').value.trim();
+  const mobile   = document.getElementById('su-mobile').value.trim();
+  const month    = document.getElementById('su-dob-month').value;
+  const day      = document.getElementById('su-dob-day').value;
+  const year     = document.getElementById('su-dob-year').value.trim();
+  const gender   = document.getElementById('su-gender').value;
+  const location = document.getElementById('su-location').value.trim();
+  const email    = document.getElementById('su-email').value.trim();
+  const password = document.getElementById('su-password').value;
+
+  document.getElementById('su-error').classList.add('hidden');
+
+  if (!fullName || !codeName || !month || !day || !year || !gender || !email || !password) {
+    showSignupMessage('Please fill in all required fields.');
+    return;
+  }
+
+  if (password.length < 6) {
+    showSignupMessage('Password must be at least 6 characters.');
+    return;
+  }
+
+  const btn = document.getElementById('su-btn');
   setButtonLoading(btn, true, 'Creating account...');
-  document.getElementById('auth-error').classList.add('hidden');
 
-  const { data, error } = await supabaseClient.auth.signUp({
-    email: email,
-    password: password
-  });
+  const { data, error } = await supabaseClient.auth.signUp({ email, password });
 
   if (error) {
     console.error('Signup error:', error);
-    showAuthMessage(error.message);
+    showSignupMessage(error.message);
     setButtonLoading(btn, false, 'Create Account');
     return;
   }
 
-  console.log('Signup success:', data);
+  const userId = data.user.id;
 
-  // If Supabase returned a session immediately (email confirmation OFF), enter app
+  const today = new Date();
+  let age = today.getFullYear() - parseInt(year);
+  if (today.getMonth() + 1 < parseInt(month) ||
+     (today.getMonth() + 1 === parseInt(month) && today.getDate() < parseInt(day))) age--;
+
+  const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+
+  const { error: profileError } = await supabaseClient.from('profiles').upsert({
+    user_id:       userId,
+    full_name:     fullName,
+    code_name:     codeName,
+    mobile:        mobile,
+    date_of_birth: dob,
+    age:           age,
+    gender:        gender,
+    location:      location
+  }, { onConflict: 'user_id' });
+
+  if (profileError) {
+    console.error('Profile save error (non-fatal):', profileError);
+  }
+
   if (data.session) {
     enterApp();
     return;
   }
 
-  // Email confirmation is ON — ask user to confirm then login
   setButtonLoading(btn, false, 'Create Account');
-  showAuthMessage('Account created! Check your email to confirm, then sign in.', true);
+  showSignupMessage('Account created! Check your email to confirm, then sign in.', true);
 }
 
 // ─── logout ───────────────────────────────────────────────────────────────────
@@ -245,7 +322,23 @@ async function initAuth() {
     initApp();
   }
 
-  // Connect buttons via event listeners
+  // Toggle: login → signup
+  document.getElementById('showSignupBtn').addEventListener('click', () => {
+    document.getElementById('login-view').classList.add('hidden');
+    document.getElementById('signup-view').classList.remove('hidden');
+    populateDayDropdownSignup();
+    document.getElementById('su-dob-month').addEventListener('change', calcAgeSignup);
+    document.getElementById('su-dob-day').addEventListener('change', calcAgeSignup);
+    document.getElementById('su-dob-year').addEventListener('input', calcAgeSignup);
+  });
+
+  // Toggle: signup → login
+  document.getElementById('showLoginBtn').addEventListener('click', () => {
+    document.getElementById('signup-view').classList.add('hidden');
+    document.getElementById('login-view').classList.remove('hidden');
+  });
+
+  // Login button
   document.getElementById('loginBtn').addEventListener('click', () => {
     const email = document.getElementById('email').value.trim();
     const password = document.getElementById('password').value;
@@ -253,19 +346,13 @@ async function initAuth() {
     login(email, password);
   });
 
-  document.getElementById('signupBtn').addEventListener('click', () => {
-    const email = document.getElementById('email').value.trim();
-    const password = document.getElementById('password').value;
-    if (!email || !password) { showAuthMessage('Please enter your email and password.'); return; }
-    signup(email, password);
-  });
+  // Signup button
+  document.getElementById('su-btn').addEventListener('click', signupWithProfile);
 
-  // Submit on Enter key in password field
+  // Enter key navigation in login form
   document.getElementById('password').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('loginBtn').click();
   });
-
-  // Move focus from email → password on Enter
   document.getElementById('email').addEventListener('keydown', (e) => {
     if (e.key === 'Enter') document.getElementById('password').focus();
   });
@@ -999,10 +1086,23 @@ async function sendMessage() {
   loadingWrapper.querySelector('div').style.opacity = '0.5';
 
   try {
+    const { data: userData } = await supabaseClient.auth.getUser();
+    const userId = userData?.user?.id;
+    let history = [];
+    if (userId) {
+      const { data: urgeData } = await supabaseClient
+        .from('urges')
+        .select('trigger, emotion, resisted, created_at')
+        .eq('user_id', userId)
+        .order('created_at', { ascending: false })
+        .limit(10);
+      if (urgeData) history = urgeData;
+    }
+
     const res = await fetch('https://perfectsand.onrender.com/chat', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text }),
+      body: JSON.stringify({ message: text, history }),
     });
     const data = await res.json();
     loadingWrapper.remove();

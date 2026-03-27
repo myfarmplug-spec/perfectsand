@@ -573,61 +573,187 @@
   </div>
 
   <!-- ─── AUTH SCREEN ────────────────────────────────────────────── -->
-  <div id="auth-screen" class="fixed inset-0 z-[200] flex flex-col items-center justify-center px-6" style="background:#0a0a0a;">
-    <div class="w-full max-w-xs">
+  <div id="auth-screen" class="fixed inset-0 z-[200] overflow-y-auto" style="background:#0a0a0a;">
 
-      <!-- Branding -->
-      <div class="text-center mb-10">
-        <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
-        <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+    <!-- LOGIN VIEW -->
+    <div id="login-view" class="min-h-screen flex flex-col items-center justify-center px-6 py-12">
+      <div class="w-full max-w-xs">
+
+        <!-- Branding -->
+        <div class="text-center mb-10">
+          <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
+          <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+        </div>
+
+        <!-- Card -->
+        <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
+          <div class="text-center mb-6">
+            <h2 class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
+            <p class="text-osa-muted text-xs">Stay in control</p>
+          </div>
+
+          <!-- Feedback -->
+          <div id="auth-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
+            <p id="auth-error-text" class="text-xs text-center leading-relaxed"></p>
+          </div>
+
+          <!-- Email -->
+          <input id="email" type="email" placeholder="Email address" autocomplete="email"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3" />
+
+          <!-- Password -->
+          <input id="password" type="password" placeholder="Password" autocomplete="current-password"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4" />
+
+          <!-- Login button -->
+          <button id="loginBtn"
+            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
+                   active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mb-4">
+            Sign In
+          </button>
+
+          <!-- Divider -->
+          <div class="flex items-center gap-3 mb-4">
+            <div class="flex-1 h-px bg-osa-border"></div>
+            <span class="text-osa-muted text-xs">or</span>
+            <div class="flex-1 h-px bg-osa-border"></div>
+          </div>
+
+          <p class="text-center text-osa-muted text-xs">
+            No account?
+            <button id="showSignupBtn" class="text-osa-accent font-semibold ml-1 hover:underline">Create one →</button>
+          </p>
+        </div>
+
       </div>
-
-      <!-- Card -->
-      <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
-
-        <div class="text-center mb-6">
-          <h2 class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
-          <p class="text-osa-muted text-xs">Stay in control</p>
-        </div>
-
-        <!-- Feedback message -->
-        <div id="auth-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
-          <p id="auth-error-text" class="text-xs text-center leading-relaxed"></p>
-        </div>
-
-        <!-- Email -->
-        <input id="email" type="email" placeholder="Email address" autocomplete="email"
-          class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3" />
-
-        <!-- Password -->
-        <input id="password" type="password" placeholder="Password" autocomplete="current-password"
-          class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                 placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4" />
-
-        <!-- Login button -->
-        <button id="loginBtn"
-          class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-                 active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mb-3">
-          Sign In
-        </button>
-
-        <!-- Divider -->
-        <div class="flex items-center gap-3 mb-3">
-          <div class="flex-1 h-px bg-osa-border"></div>
-          <span class="text-osa-muted text-xs">or</span>
-          <div class="flex-1 h-px bg-osa-border"></div>
-        </div>
-
-        <!-- Signup button -->
-        <button id="signupBtn"
-          class="w-full py-3.5 rounded-2xl border border-osa-border text-osa-muted text-sm font-semibold
-                 active:scale-95 transition-all duration-200 hover:border-osa-accent hover:text-osa-accent">
-          Create Account
-        </button>
-      </div>
-
     </div>
+
+    <!-- SIGNUP VIEW -->
+    <div id="signup-view" class="hidden min-h-screen flex flex-col items-center justify-start px-6 py-12">
+      <div class="w-full max-w-xs">
+
+        <!-- Branding -->
+        <div class="text-center mb-8">
+          <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
+          <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+        </div>
+
+        <!-- Card -->
+        <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
+          <div class="text-center mb-6">
+            <h2 class="text-osa-text text-xl font-bold mb-1">Create Account</h2>
+            <p class="text-osa-muted text-xs">Tell us about yourself first</p>
+          </div>
+
+          <!-- Feedback -->
+          <div id="su-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
+            <p id="su-error-text" class="text-xs text-center leading-relaxed"></p>
+          </div>
+
+          <div class="space-y-3">
+
+            <!-- Full Name -->
+            <input id="su-fullname" type="text" placeholder="Full name"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Code Name -->
+            <input id="su-codename" type="text" placeholder="Code name — your alias in the app"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Mobile -->
+            <input id="su-mobile" type="tel" placeholder="Mobile number"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- DOB -->
+            <div>
+              <p class="text-osa-muted text-xs uppercase tracking-widest mb-2 ml-1">Date of Birth</p>
+              <div class="flex gap-2">
+                <select id="su-dob-month"
+                  class="auth-input flex-1 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
+                         focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                  <option value="" disabled selected>Month</option>
+                  <option value="1">January</option><option value="2">February</option>
+                  <option value="3">March</option><option value="4">April</option>
+                  <option value="5">May</option><option value="6">June</option>
+                  <option value="7">July</option><option value="8">August</option>
+                  <option value="9">September</option><option value="10">October</option>
+                  <option value="11">November</option><option value="12">December</option>
+                </select>
+                <select id="su-dob-day"
+                  class="auth-input w-20 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
+                         focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                  <option value="" disabled selected>Day</option>
+                </select>
+                <div class="bg-osa-card border border-osa-border rounded-2xl px-3 py-3.5 text-center min-w-[56px]">
+                  <p id="su-age-display" class="text-osa-accent text-base font-bold leading-none">—</p>
+                  <p class="text-osa-muted text-xs mt-0.5">yrs</p>
+                </div>
+              </div>
+            </div>
+
+            <!-- Birth Year -->
+            <input id="su-dob-year" type="number" placeholder="Birth year (e.g. 1998)"
+              min="1940" max="2015"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Gender -->
+            <select id="su-gender"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+              <option value="" disabled selected>Gender</option>
+              <option value="Male">Male</option>
+              <option value="Female">Female</option>
+              <option value="Non-binary">Non-binary</option>
+              <option value="Prefer not to say">Prefer not to say</option>
+            </select>
+
+            <!-- Location -->
+            <input id="su-location" type="text" placeholder="Current city / location"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Divider -->
+            <div class="flex items-center gap-3 pt-1">
+              <div class="flex-1 h-px bg-osa-border"></div>
+              <span class="text-osa-muted text-xs">account details</span>
+              <div class="flex-1 h-px bg-osa-border"></div>
+            </div>
+
+            <!-- Email -->
+            <input id="su-email" type="email" placeholder="Email address" autocomplete="email"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Password -->
+            <input id="su-password" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password"
+              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+            <!-- Submit -->
+            <button id="su-btn"
+              class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
+                     active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-1">
+              Create Account
+            </button>
+
+            <!-- Back to login -->
+            <p class="text-center text-osa-muted text-xs pt-1">
+              Already have an account?
+              <button id="showLoginBtn" class="text-osa-accent font-semibold ml-1 hover:underline">Sign in →</button>
+            </p>
+
+          </div>
+        </div>
+
+      </div>
+    </div>
+
   </div>
 
   <script src="app.js"></script>
