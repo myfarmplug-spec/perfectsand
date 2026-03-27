@@ -3,6 +3,55 @@ const supabaseUrl = "https://njtoptrbskaklunzavzr.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdG9wdHJic2tha2x1bnphdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDY0OTAsImV4cCI6MjA5MDE4MjQ5MH0.CJXWm6VFxymxsIfAd58KCs1p_4S04979vJUy9xH4gr0";
 
 const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+const REMOTE_API_BASE = 'https://perfectsand.onrender.com';
+const INTERVENTION_DURATION_SECONDS = 600;
+const INTERVENTION_FALLBACK_MESSAGE = 'Stay with it. This will pass.';
+const INTERVENTION_INSERT_DEFAULTS = {
+  trigger: 'Immediate intervention',
+  emotion: 'Under pressure',
+  resisted: false,
+};
+
+let interventionInterval = null;
+let activeInterventionUrgeId = null;
+let interventionSessionId = 0;
+
+function getApiCandidates(path) {
+  const normalisedPath = path.startsWith('/') ? path : `/${path}`;
+  const candidates = [];
+
+  if (window.location?.origin?.startsWith('http')) {
+    candidates.push(new URL(normalisedPath, window.location.origin).toString());
+  }
+
+  candidates.push(`${REMOTE_API_BASE}${normalisedPath}`);
+  return [...new Set(candidates)];
+}
+
+async function postJson(path, payload) {
+  const endpoints = getApiCandidates(path);
+  let lastError = null;
+
+  for (const endpoint of endpoints) {
+    try {
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+
+      if (!response.ok) {
+        throw new Error(`Request failed with status ${response.status}`);
+      }
+
+      return await response.json();
+    } catch (error) {
+      lastError = error;
+    }
+  }
+
+  throw lastError || new Error(`Unable to reach ${path}`);
+}
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -367,7 +416,7 @@ function saveUrgeLog(log) {
   localStorage.setItem('urgeLog', JSON.stringify(log));
 }
 
-// Active urge being built across the 3-step flow
+// Active intervention state
 let currentUrge = {
   trigger: null,
   emotion: null,
@@ -375,40 +424,6 @@ let currentUrge = {
   startTime: null,
   resisted: false,
 };
-
-// ─── Chip Selection UI ────────────────────────────────────────────────────────
-
-document.addEventListener('click', (e) => {
-  const chip = e.target.closest('.chip');
-  if (!chip) return;
-  const group = chip.dataset.group;
-
-  document.querySelectorAll(`.chip[data-group="${group}"]`).forEach(c => c.classList.remove('chip-active'));
-  chip.classList.add('chip-active');
-
-  if (group === 'trigger') {
-    currentUrge.trigger = chip.dataset.val;
-    showToast(`Trigger: ${chip.dataset.val}`);
-    revealFormStep('step-emotion');
-  }
-  if (group === 'emotion') {
-    currentUrge.emotion = chip.dataset.val;
-    revealFormStep('step-cta');
-  }
-  if (group === 'action') {
-    currentUrge.action = chip.dataset.val;
-  }
-});
-
-function revealFormStep(id) {
-  const el = document.getElementById(id);
-  if (!el || !el.classList.contains('hidden')) return;
-  el.classList.remove('hidden');
-  el.classList.add('form-step-enter');
-  setTimeout(() => el.classList.remove('form-step-enter'), 400);
-  // Scroll the form down to show the new section
-  setTimeout(() => el.scrollIntoView({ behavior: 'smooth', block: 'start' }), 50);
-}
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -428,8 +443,7 @@ function getControlLevel(rate) {
   return               { label: 'Mastery',           color: 'text-osa-accent' };
 }
 
-function renderStats() {
-  const s = getStats();
+function applyStatsToDashboard(s) {
   document.getElementById('stat-urges').textContent = s.urges;
   document.getElementById('stat-resisted').textContent = s.resisted;
 
@@ -441,6 +455,46 @@ function renderStats() {
   if (levelEl) {
     levelEl.textContent = level.label;
     levelEl.className = `text-sm font-bold ${level.color}`;
+  }
+}
+
+async function fetchRemoteStats() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return getStats();
+
+  const [totalResponse, resistedResponse] = await Promise.all([
+    supabaseClient
+      .from('urges')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id),
+    supabaseClient
+      .from('urges')
+      .select('*', { count: 'exact', head: true })
+      .eq('user_id', user.id)
+      .eq('resisted', true),
+  ]);
+
+  if (totalResponse.error) throw totalResponse.error;
+  if (resistedResponse.error) throw resistedResponse.error;
+
+  const cached = getStats();
+  return {
+    urges: totalResponse.count || 0,
+    resisted: resistedResponse.count || 0,
+    slips: cached.slips || 0,
+  };
+}
+
+async function renderStats() {
+  const cached = getStats();
+  applyStatsToDashboard(cached);
+
+  try {
+    const remoteStats = await fetchRemoteStats();
+    saveStats(remoteStats);
+    applyStatsToDashboard(remoteStats);
+  } catch (error) {
+    console.error('Unable to refresh stats from Supabase:', error);
   }
 }
 
@@ -606,215 +660,337 @@ function showTab(name) {
 
 // ─── Urge Flow ────────────────────────────────────────────────────────────────
 
-const urgeMessages = [
-  'This will pass.',
-  'Breathe and stay grounded.',
-  'Stand up and move.',
-  'You are stronger than this moment.',
-  "Feel it. Don't act on it.",
-  'Let the urge rise and fall like a wave.',
-  'Your future self is watching.',
-  'One minute at a time.',
-];
-
-async function getUserHistory() {
-  const { data: userData } = await supabaseClient.auth.getUser();
-  const userId = userData?.user?.id;
-  if (!userId) return [];
-  const { data } = await supabaseClient
-    .from('urges')
-    .select('trigger, emotion, resisted, created_at')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: false })
-    .limit(10);
-  return data || [];
-}
-
-async function generateOsaBattleMessage(trigger, emotion) {
-  try {
-    const history = await getUserHistory();
-    const res = await fetch('https://perfectsand.onrender.com/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        message: `User is experiencing an urge RIGHT NOW. Trigger: ${trigger}. Emotion: ${emotion}. Respond immediately, short and direct.`,
-        history,
-      }),
-    });
-    const data = await res.json();
-    if (data.reply) {
-      const el = document.getElementById('urge-message');
-      el.style.opacity = '0';
-      setTimeout(() => { el.textContent = data.reply; el.style.opacity = '1'; }, 300);
-    }
-  } catch {
-    // fallback — static message already set
-  }
-}
-
-let urgeInterval = null;
-let messageInterval = null;
-let urgeSeconds = 600;
-
 function formatTime(s) {
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
-let urgeFormCountdownInterval = null;
+function getFallbackUrgeEntries(limit = null) {
+  const localEntries = getUrgeLog()
+    .map((entry, index) => ({
+      id: `local-${index}`,
+      trigger: entry.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+      emotion: entry.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+      resisted: Boolean(entry.resisted),
+      created_at: entry.time || new Date().toISOString(),
+      duration: entry.duration || 0,
+      action: entry.action || null,
+    }))
+    .sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
 
-function closeUrgeForm() {
-  document.getElementById('urge-form').classList.add('hidden');
-  clearInterval(urgeFormCountdownInterval);
+  return limit ? localEntries.slice(0, limit) : localEntries;
 }
 
-// Step 1: Open form overlay
-function openUrgeForm() {
-  currentUrge = { trigger: null, emotion: null, action: null, startTime: null, resisted: false };
-  document.querySelectorAll('.chip').forEach(c => c.classList.remove('chip-active'));
-
-  // Reset steps
-  document.getElementById('step-emotion').classList.add('hidden');
-  document.getElementById('step-cta').classList.add('hidden');
-  document.getElementById('urge-form').classList.remove('hidden');
-
-  // Live countdown in form header
-  const updateFormCountdown = () => {
-    const remaining = getRemainingTime();
-    const el = document.getElementById('urge-form-countdown');
-    if (el) el.textContent = remaining ? `${remaining} left today` : 'Today is almost won';
-  };
-  updateFormCountdown();
-  clearInterval(urgeFormCountdownInterval);
-  urgeFormCountdownInterval = setInterval(updateFormCountdown, 1000);
-}
-
-// Step 2: Form submitted → start timer
-async function handleTrigger(trigger, emotion) {
+async function loadUrgeEntries(limit = null) {
   const { data: { user } } = await supabaseClient.auth.getUser();
-  const { data, error } = await supabaseClient
-    .from("urges")
-    .insert([
-      {
-        user_id: user.id,
-        trigger: trigger,
-        emotion: emotion,
-        resisted: false
-      }
-    ])
-    .select();
-  if (error) {
-    console.error(error);
-  } else {
-    console.log("Saved:", data);
-    localStorage.setItem("currentUrgeId", data[0].id);
+  if (!user) return getFallbackUrgeEntries(limit);
+
+  let query = supabaseClient
+    .from('urges')
+    .select('id, trigger, emotion, resisted, created_at')
+    .eq('user_id', user.id)
+    .order('created_at', { ascending: false });
+
+  if (limit) {
+    query = query.limit(limit);
   }
-  // Continue with timer UI
-  clearInterval(urgeFormCountdownInterval);
-  document.getElementById('urge-form').classList.add('hidden');
-  // Track stats
-  const s = getStats();
-  s.urges += 1;
-  saveStats(s);
-  renderStats();
-  setState('Under Pressure');
-  setBattleMode(true);
-  // Set start time
-  currentUrge.startTime = Date.now();
-  // Start timer
-  urgeSeconds = 600;
-  document.getElementById('urge-timer').textContent = formatTime(urgeSeconds);
-  document.getElementById('urge-message').textContent = urgeMessages[0];
-  document.getElementById('urge-mode').classList.remove('hidden');
-  generateOsaBattleMessage(trigger, emotion);
-  let msgIndex = 0;
-  urgeInterval = setInterval(() => {
-    urgeSeconds--;
-    document.getElementById('urge-timer').textContent = formatTime(urgeSeconds);
-    if (urgeSeconds <= 0) stopUrgeMode(true);
+
+  const { data, error } = await query;
+  if (error) throw error;
+
+  if (!data || data.length === 0) {
+    return getFallbackUrgeEntries(limit);
+  }
+
+  return data.map(entry => ({
+    id: entry.id,
+    trigger: entry.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+    emotion: entry.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+    resisted: Boolean(entry.resisted),
+    created_at: entry.created_at || new Date().toISOString(),
+    duration: null,
+    action: null,
+  }));
+}
+
+async function getUserHistory() {
+  try {
+    const entries = await loadUrgeEntries(10);
+    return entries.map(({ trigger, emotion, resisted, created_at }) => ({
+      trigger,
+      emotion,
+      resisted,
+      created_at,
+    }));
+  } catch (error) {
+    console.error('Unable to load urge history:', error);
+    return getFallbackUrgeEntries(10).map(({ trigger, emotion, resisted, created_at }) => ({
+      trigger,
+      emotion,
+      resisted,
+      created_at,
+    }));
+  }
+}
+
+function setInterventionStatus(text, tone = 'loading') {
+  const statusEl = document.getElementById('intervention-status');
+  if (!statusEl) return;
+
+  statusEl.textContent = text;
+  statusEl.className = 'mb-5 text-xs uppercase tracking-[0.28em]';
+
+  if (tone === 'success') {
+    statusEl.classList.add('text-green-400');
+    return;
+  }
+
+  if (tone === 'ready') {
+    statusEl.classList.add('text-red-300');
+    return;
+  }
+
+  if (tone === 'error') {
+    statusEl.classList.add('text-red-500');
+    return;
+  }
+
+  statusEl.classList.add('text-red-400', 'intervention-status-loading');
+}
+
+function setInterventionMessage(message) {
+  const messageEl = document.getElementById('urge-message');
+  if (!messageEl) return;
+
+  messageEl.style.opacity = '0';
+  setTimeout(() => {
+    messageEl.textContent = message;
+    messageEl.style.opacity = '1';
+  }, 140);
+}
+
+function setInterventionVisible(visible) {
+  const overlay = document.getElementById('urge-mode');
+  if (!overlay) return;
+
+  overlay.classList.toggle('hidden', !visible);
+  document.body.classList.toggle('intervention-active', visible);
+  setBattleMode(visible);
+
+  if (visible) {
+    document.getElementById('resistBtn')?.focus();
+  }
+}
+
+function resetInterventionUI() {
+  const titleEl = document.getElementById('intervention-title');
+  const timerEl = document.getElementById('urge-timer');
+  const resistBtn = document.getElementById('resistBtn');
+  const dismissBtn = document.getElementById('dismissInterventionBtn');
+
+  if (titleEl) titleEl.textContent = '⚠️ You are under pressure';
+  if (timerEl) timerEl.textContent = formatTime(INTERVENTION_DURATION_SECONDS);
+  if (resistBtn) {
+    resistBtn.disabled = false;
+    resistBtn.textContent = 'I stayed in control';
+    resistBtn.style.opacity = '1';
+  }
+  if (dismissBtn) dismissBtn.disabled = false;
+
+  setInterventionStatus('Connecting to Osa...', 'loading');
+  const messageEl = document.getElementById('urge-message');
+  if (messageEl) {
+    messageEl.textContent = INTERVENTION_FALLBACK_MESSAGE;
+    messageEl.style.opacity = '1';
+  }
+}
+
+function clearInterventionTimer() {
+  clearInterval(interventionInterval);
+  interventionInterval = null;
+}
+
+function finishInterventionCountdown() {
+  clearInterventionTimer();
+
+  const titleEl = document.getElementById('intervention-title');
+  if (titleEl) titleEl.textContent = 'You made it. Control won.';
+
+  document.getElementById('urge-timer').textContent = '00:00';
+  setInterventionStatus('Mark the win when you are ready.', 'success');
+  setInterventionMessage('You made it. Control won.');
+}
+
+function startInterventionTimer() {
+  let remaining = INTERVENTION_DURATION_SECONDS;
+  document.getElementById('urge-timer').textContent = formatTime(remaining);
+  clearInterventionTimer();
+
+  interventionInterval = setInterval(() => {
+    remaining -= 1;
+    const safeRemaining = Math.max(remaining, 0);
+    document.getElementById('urge-timer').textContent = formatTime(safeRemaining);
+
+    if (safeRemaining <= 0) {
+      finishInterventionCountdown();
+    }
   }, 1000);
-  messageInterval = setInterval(() => {
-    msgIndex = (msgIndex + 1) % urgeMessages.length;
-    const el = document.getElementById('urge-message');
-    el.style.opacity = '0';
-    setTimeout(() => { el.textContent = urgeMessages[msgIndex]; el.style.opacity = '1'; }, 400);
-  }, 15000);
 }
 
-// Replace submitUrgeForm with a wrapper that uses handleTrigger
-function submitUrgeForm() {
-  if (!currentUrge.trigger) { showToast('Select a trigger first.'); return; }
-  if (!currentUrge.emotion) { showToast('Select how you feel.'); return; }
-  handleTrigger(currentUrge.trigger, currentUrge.emotion);
+async function createInterventionUrge(userId) {
+  const { data, error } = await supabaseClient
+    .from('urges')
+    .insert([{ user_id: userId, ...INTERVENTION_INSERT_DEFAULTS }])
+    .select('id, trigger, emotion, resisted, created_at')
+    .single();
+
+  if (error) throw error;
+  return data;
 }
 
-// Step 3: Timer stopped
-function stopUrgeMode(resisted = false) {
-  clearInterval(urgeInterval);
-  clearInterval(messageInterval);
-  urgeInterval = null;
-  messageInterval = null;
-  document.getElementById('urge-mode').classList.add('hidden');
-  setBattleMode(false);
+async function requestInterventionMessage(history) {
+  const data = await postJson('/chat', {
+    message: 'User is experiencing an urge right now. Respond immediately.',
+    history,
+  });
 
-  currentUrge.resisted = resisted;
-  currentUrge.duration = Math.round((Date.now() - (currentUrge.startTime || Date.now())) / 1000);
+  return data?.reply?.trim() || INTERVENTION_FALLBACK_MESSAGE;
+}
 
-  if (resisted) {
-    markResisted();
-    const s = getStats();
-    s.resisted += 1;
-    saveStats(s);
-    renderStats();
-    setState('In Control');
-    showToast('You resisted. You are building yourself.');
-    document.querySelectorAll('.chip[data-group="action"]').forEach(c => c.classList.remove('chip-active'));
-    document.getElementById('urge-action').classList.remove('hidden');
-  } else {
-    setState('Recovering');
-    finaliseUrgeEntry('Left the situation');
+async function syncInterventionState(userId, sessionId) {
+  try {
+    const urge = await createInterventionUrge(userId);
+    if (sessionId !== interventionSessionId) return;
+
+    activeInterventionUrgeId = urge?.id || null;
+    localStorage.setItem('currentUrgeId', activeInterventionUrgeId || '');
+    await renderStats();
+
+    const history = await getUserHistory();
+    const reply = await requestInterventionMessage(history);
+    if (sessionId !== interventionSessionId) return;
+
+    setInterventionStatus('Osa is with you now.', 'ready');
+    setInterventionMessage(reply);
+  } catch (error) {
+    if (sessionId !== interventionSessionId) return;
+
+    console.error('Unable to sync intervention state:', error);
+    setInterventionStatus('Osa could not connect. Stay with the steps.', 'error');
+    setInterventionMessage(INTERVENTION_FALLBACK_MESSAGE);
+    showToast('Intervention started, but sync failed.');
   }
 }
 
-// Step 3b: Mark urge as resisted in Supabase
+async function startBattleMode() {
+  if (interventionInterval || document.body.classList.contains('intervention-active')) return;
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) {
+    showToast('Please sign in again to start intervention mode.');
+    return;
+  }
+
+  interventionSessionId += 1;
+  activeInterventionUrgeId = null;
+  localStorage.removeItem('currentUrgeId');
+  currentUrge = { trigger: null, emotion: null, action: null, startTime: Date.now(), resisted: false };
+
+  resetInterventionUI();
+  setInterventionVisible(true);
+  setState('Under Pressure');
+  startInterventionTimer();
+
+  void syncInterventionState(user.id, interventionSessionId);
+}
+
+function dismissIntervention() {
+  clearInterventionTimer();
+  interventionSessionId += 1;
+  activeInterventionUrgeId = null;
+  localStorage.removeItem('currentUrgeId');
+  setInterventionVisible(false);
+  resetInterventionUI();
+  setState('Recovering');
+  renderStats();
+  renderHistory();
+  renderInsights();
+}
+
 async function markResisted() {
-  const urgeId = localStorage.getItem("currentUrgeId");
-  if (!urgeId) return;
+  const urgeId = activeInterventionUrgeId || localStorage.getItem('currentUrgeId');
+  if (!urgeId) throw new Error('No urge record available to update.');
+
   const { error } = await supabaseClient
-    .from("urges")
+    .from('urges')
     .update({ resisted: true })
-    .eq("id", urgeId);
-  if (error) console.error(error);
+    .eq('id', urgeId);
+
+  if (error) throw error;
 }
 
-// Step 4: Save action and complete entry
-function saveUrgeEntry() {
-  const action = currentUrge.action || 'Breathed through it';
-  document.getElementById('urge-action').classList.add('hidden');
-  finaliseUrgeEntry(action);
-  showToast('Entry saved. You got through it.');
+async function resistIntervention() {
+  const resistBtn = document.getElementById('resistBtn');
+  const dismissBtn = document.getElementById('dismissInterventionBtn');
+  if (!resistBtn || resistBtn.disabled) return;
+
+  clearInterventionTimer();
+  resistBtn.disabled = true;
+  resistBtn.style.opacity = '0.7';
+  resistBtn.textContent = 'Saving...';
+  if (dismissBtn) dismissBtn.disabled = true;
+
+  try {
+    await markResisted();
+    currentUrge.resisted = true;
+    setState('In Control');
+    setInterventionStatus('You stayed in control.', 'success');
+    setInterventionMessage('You stayed in control.');
+    showToast('You stayed in control.');
+  } catch (error) {
+    console.error('Unable to mark urge as resisted:', error);
+    setState('In Control');
+    setInterventionStatus('You stayed in control, but sync failed.', 'error');
+    setInterventionMessage('You stayed in control.');
+    showToast('You stayed in control, but the log did not sync.');
+  } finally {
+    await renderStats();
+    renderHistory();
+    renderInsights();
+
+    setTimeout(() => {
+      interventionSessionId += 1;
+      activeInterventionUrgeId = null;
+      localStorage.removeItem('currentUrgeId');
+      setInterventionVisible(false);
+      resetInterventionUI();
+    }, 700);
+  }
 }
 
-function finaliseUrgeEntry(action) {
-  const log = getUrgeLog();
-  log.push({
-    time: new Date().toISOString(),
-    trigger: currentUrge.trigger || 'Unknown',
-    emotion: currentUrge.emotion || 'Unknown',
-    duration: currentUrge.duration || 0,
-    action,
-    resisted: currentUrge.resisted,
-  });
-  saveUrgeLog(log);
+function stopUrgeMode(resisted = false) {
+  if (resisted) {
+    void resistIntervention();
+    return;
+  }
+
+  dismissIntervention();
 }
 
 // ─── History Rendering ────────────────────────────────────────────────────────
 
-function renderHistory() {
+async function renderHistory() {
   const container = document.getElementById('history-list');
   const emptyMsg = document.getElementById('history-empty');
-  const log = getUrgeLog();
+  let entries = [];
 
-  if (log.length === 0) {
+  try {
+    entries = await loadUrgeEntries(100);
+  } catch (error) {
+    console.error('Unable to render history from Supabase:', error);
+    entries = getFallbackUrgeEntries(100);
+  }
+
+  if (entries.length === 0) {
     emptyMsg.classList.remove('hidden');
     container.innerHTML = '';
     container.appendChild(emptyMsg);
@@ -822,12 +998,11 @@ function renderHistory() {
   }
 
   emptyMsg.classList.add('hidden');
-  const entries = [...log].reverse();
 
   // Group by date
   const groups = {};
   entries.forEach(entry => {
-    const d = new Date(entry.time);
+    const d = new Date(entry.created_at);
     const label = getDateLabel(d);
     if (!groups[label]) groups[label] = [];
     groups[label].push(entry);
@@ -839,12 +1014,12 @@ function renderHistory() {
     groupEl.innerHTML = `<p class="text-osa-muted text-xs uppercase tracking-widest mb-2">${label}</p>`;
 
     items.forEach(entry => {
-      const d = new Date(entry.time);
+      const d = new Date(entry.created_at);
       const time = d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' });
-      const mins = Math.round(entry.duration / 60);
-      const durationLabel = mins < 1 ? `${entry.duration}s` : `${mins}m`;
       const resistedColor = entry.resisted ? 'text-green-400' : 'text-red-400';
-      const resistedLabel = entry.resisted ? 'Resisted' : 'Left';
+      const resistedLabel = entry.resisted ? 'Resisted' : 'Recorded';
+      const triggerLabel = entry.trigger || INTERVENTION_INSERT_DEFAULTS.trigger;
+      const emotionLabel = entry.emotion || INTERVENTION_INSERT_DEFAULTS.emotion;
 
       const card = document.createElement('div');
       card.className = 'bg-osa-card border border-osa-border rounded-2xl p-4 mb-2 text-sm';
@@ -854,10 +1029,10 @@ function renderHistory() {
           <span class="text-xs font-semibold ${resistedColor}">${resistedLabel}</span>
         </div>
         <div class="grid grid-cols-2 gap-x-4 gap-y-1 text-xs">
-          <div><span class="text-osa-muted">Trigger </span><span class="text-osa-text">${entry.trigger}</span></div>
-          <div><span class="text-osa-muted">Emotion </span><span class="text-osa-text">${entry.emotion}</span></div>
-          <div><span class="text-osa-muted">Duration </span><span class="text-osa-text">${durationLabel}</span></div>
-          <div><span class="text-osa-muted">Action </span><span class="text-osa-text">${entry.action}</span></div>
+          <div><span class="text-osa-muted">Trigger </span><span class="text-osa-text">${triggerLabel}</span></div>
+          <div><span class="text-osa-muted">Emotion </span><span class="text-osa-text">${emotionLabel}</span></div>
+          <div><span class="text-osa-muted">Logged </span><span class="text-osa-text">${d.toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}</span></div>
+          <div><span class="text-osa-muted">State </span><span class="text-osa-text">${resistedLabel}</span></div>
         </div>`;
       groupEl.appendChild(card);
     });
@@ -875,20 +1050,44 @@ function getDateLabel(date) {
   return date.toLocaleDateString('en-US', { weekday: 'long', month: 'short', day: 'numeric' });
 }
 
-function clearHistory() {
+async function clearHistory() {
   if (!confirm('Clear all journal entries? This cannot be undone.')) return;
+  let clearedRemotely = true;
+
+  try {
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    if (user) {
+      const { error } = await supabaseClient
+        .from('urges')
+        .delete()
+        .eq('user_id', user.id);
+
+      if (error) throw error;
+    }
+  } catch (error) {
+    clearedRemotely = false;
+    console.error('Unable to clear Supabase urge history:', error);
+  }
+
   localStorage.removeItem('urgeLog');
+  await renderStats();
   renderHistory();
   renderInsights();
-  showToast('Journal cleared.');
+  showToast(clearedRemotely ? 'Journal cleared.' : 'Cloud history could not be cleared.');
 }
 
 // ─── Insights ────────────────────────────────────────────────────────────────
 
-function renderInsights() {
-  const log = getUrgeLog();
+async function renderInsights() {
   const container = document.getElementById('insights-content');
-  const stats = getStats();
+  let log = [];
+
+  try {
+    log = await loadUrgeEntries(100);
+  } catch (error) {
+    console.error('Unable to render insights from Supabase:', error);
+    log = getFallbackUrgeEntries(100);
+  }
 
   if (log.length < 2) {
     container.innerHTML = '<p class="text-osa-muted text-xs">Log a few urges to see your patterns.</p>';
@@ -897,13 +1096,16 @@ function renderInsights() {
 
   // Count triggers
   const triggers = {};
-  log.forEach(e => { triggers[e.trigger] = (triggers[e.trigger] || 0) + 1; });
+  log.forEach(e => {
+    const trigger = e.trigger || INTERVENTION_INSERT_DEFAULTS.trigger;
+    triggers[trigger] = (triggers[trigger] || 0) + 1;
+  });
   const topTrigger = Object.entries(triggers).sort((a, b) => b[1] - a[1])[0][0];
 
   // Count hour buckets
   const buckets = { Morning: 0, Afternoon: 0, Evening: 0, Night: 0 };
   log.forEach(e => {
-    const h = new Date(e.time).getHours();
+    const h = new Date(e.created_at).getHours();
     if (h >= 5 && h < 12) buckets.Morning++;
     else if (h >= 12 && h < 17) buckets.Afternoon++;
     else if (h >= 17 && h < 22) buckets.Evening++;
@@ -912,10 +1114,9 @@ function renderInsights() {
   const peakTime = Object.entries(buckets).sort((a, b) => b[1] - a[1])[0][0];
 
   // Control rate
-  const rate = stats.urges > 0 ? Math.round((stats.resisted / stats.urges) * 100) : 0;
-
-  // Avg duration
-  const avgDuration = Math.round(log.reduce((sum, e) => sum + (e.duration || 0), 0) / log.length / 60);
+  const resistedCount = log.filter(entry => entry.resisted).length;
+  const rate = log.length > 0 ? Math.round((resistedCount / log.length) * 100) : 0;
+  const recentCount = log.filter(entry => Date.now() - new Date(entry.created_at).getTime() <= 7 * 24 * 60 * 60 * 1000).length;
 
   container.innerHTML = `
     <div class="grid grid-cols-2 gap-2 text-xs">
@@ -932,8 +1133,8 @@ function renderInsights() {
         <p class="text-osa-accent font-bold text-base">${rate}%</p>
       </div>
       <div class="bg-black/30 rounded-xl p-3">
-        <p class="text-osa-muted mb-1">Avg duration</p>
-        <p class="text-osa-text font-semibold">${avgDuration}m</p>
+        <p class="text-osa-muted mb-1">Last 7 days</p>
+        <p class="text-osa-text font-semibold">${recentCount} urges</p>
       </div>
     </div>
     <p class="text-osa-muted text-xs mt-3">Based on ${log.length} logged urge${log.length === 1 ? '' : 's'}.</p>`;
@@ -942,7 +1143,15 @@ function renderInsights() {
 // ─── AI Insights ─────────────────────────────────────────────────────────────
 
 async function generateAIInsights() {
-  const log = getUrgeLog();
+  let log = [];
+
+  try {
+    log = await loadUrgeEntries(50);
+  } catch (error) {
+    console.error('Unable to load urge logs for AI insights:', error);
+    log = getFallbackUrgeEntries(50);
+  }
+
   if (log.length === 0) { showToast('Log some urges first.'); return; }
 
   const btn = document.getElementById('ai-insights-btn');
@@ -950,12 +1159,7 @@ async function generateAIInsights() {
   btn.disabled = true;
 
   try {
-    const res = await fetch('https://perfectsand.onrender.com/insights', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ logs: log }),
-    });
-    const data = await res.json();
+    const data = await postJson('/insights', { logs: log });
     document.getElementById('ai-insight-text').textContent = data.insight;
     document.getElementById('ai-insight-box').classList.remove('hidden');
   } catch {
@@ -1123,13 +1327,7 @@ async function sendMessage() {
 
   try {
     const history = await getUserHistory();
-
-    const res = await fetch('https://perfectsand.onrender.com/chat', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ message: text, history }),
-    });
-    const data = await res.json();
+    const data = await postJson('/chat', { message: text, history });
     loadingWrapper.remove();
 
     if (data.reply) {

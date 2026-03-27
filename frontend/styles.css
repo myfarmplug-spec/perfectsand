@@ -10,6 +10,10 @@ body {
   overscroll-behavior: none;
 }
 
+body.intervention-active {
+  overflow: hidden;
+}
+
 /* ── Scrollbar ──────────────────────────────────────────────────────── */
 
 #chat-messages::-webkit-scrollbar {
@@ -40,6 +44,55 @@ body {
 /* legacy alias */
 .urge-pulse {
   animation: pulseRed 2s ease-in-out infinite;
+}
+
+@keyframes interventionFadeIn {
+  from {
+    opacity: 0;
+  }
+  to {
+    opacity: 1;
+  }
+}
+
+@keyframes interventionPanelIn {
+  from {
+    opacity: 0;
+    transform: translateY(16px) scale(0.98);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes statusPulse {
+  0%, 100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
+
+.intervention-overlay {
+  background:
+    radial-gradient(circle at top, rgba(140, 0, 0, 0.22), transparent 42%),
+    radial-gradient(circle at bottom, rgba(80, 0, 0, 0.18), transparent 48%),
+    rgba(0, 0, 0, 0.96);
+  animation: interventionFadeIn 0.24s ease;
+}
+
+.intervention-panel {
+  animation: interventionPanelIn 0.28s ease;
+  box-shadow:
+    0 0 0 1px rgba(127, 29, 29, 0.35),
+    0 28px 80px rgba(0, 0, 0, 0.55),
+    0 0 80px rgba(127, 29, 29, 0.18);
+}
+
+.intervention-status-loading {
+  animation: statusPulse 1.4s ease-in-out infinite;
 }
 
 /* ── Urge message fade ──────────────────────────────────────────────── */
@@ -87,7 +140,7 @@ body {
 /* ── Urge timer glow ────────────────────────────────────────────────── */
 
 #urge-timer {
-  text-shadow: 0 0 30px rgba(201, 169, 110, 0.4);
+  text-shadow: 0 0 34px rgba(248, 113, 113, 0.3);
 }
 
 /* ── Input focus ring ───────────────────────────────────────────────── */
@@ -102,16 +155,6 @@ body {
   transition: opacity 0.15s ease;
 }
 
-/* ── Urge form step reveal ──────────────────────────────────────────── */
-
-.form-step {
-  transition: opacity 0.3s ease, transform 0.3s ease;
-}
-
-.form-step-enter {
-  animation: message-in 0.35s ease forwards;
-}
-
 /* ── Battle mode tint ───────────────────────────────────────────────── */
 
 body.battle {
@@ -123,32 +166,6 @@ body.battle {
 
 #reward-popup {
   animation: message-in 0.3s ease forwards;
-}
-
-/* ── Selection chips ────────────────────────────────────────────────── */
-
-.chip {
-  padding: 0.6rem 0.75rem;
-  border-radius: 12px;
-  border: 1px solid #2a2a2a;
-  background: #1a1a1a;
-  color: #888888;
-  font-size: 0.8rem;
-  font-weight: 500;
-  text-align: center;
-  cursor: pointer;
-  transition: all 0.15s ease;
-  -webkit-tap-highlight-color: transparent;
-}
-
-.chip:active {
-  transform: scale(0.96);
-}
-
-.chip-active {
-  border-color: #c9a96e;
-  background: rgba(201, 169, 110, 0.12);
-  color: #c9a96e;
 }
 
 /* ── Auth Screen ────────────────────────────────────────────────── */
