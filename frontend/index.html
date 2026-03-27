@@ -479,6 +479,99 @@
     </div>
   </div>
 
+  <!-- ─── PROFILE SETUP ──────────────────────────────────────────── -->
+  <div id="profile-screen" class="hidden fixed inset-0 z-[190] overflow-y-auto" style="background:#0a0a0a;">
+    <div class="min-h-full flex flex-col items-center justify-center px-6 py-12">
+      <div class="w-full max-w-xs">
+
+        <div class="text-center mb-8">
+          <h1 class="text-xl font-bold text-osa-accent tracking-wide mb-2">Complete Your Profile</h1>
+          <p class="text-osa-muted text-xs leading-relaxed">Private to you. Osa uses this to personalise your journey.</p>
+        </div>
+
+        <!-- Error -->
+        <div id="profile-error" class="hidden bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4">
+          <p id="profile-error-text" class="text-red-400 text-xs text-center"></p>
+        </div>
+
+        <div class="space-y-3">
+
+          <!-- Full Name -->
+          <input id="profile-fullname" type="text" placeholder="Full name"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+          <!-- Code Name -->
+          <input id="profile-codename" type="text" placeholder="Code name — your alias in the app"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+          <!-- Mobile -->
+          <input id="profile-mobile" type="tel" placeholder="Mobile number"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+          <!-- DOB + Auto Age -->
+          <div>
+            <p class="text-osa-muted text-xs uppercase tracking-widest mb-2 ml-1">Date of Birth</p>
+            <div class="flex gap-2">
+              <select id="profile-dob-month"
+                class="auth-input flex-1 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
+                       focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                <option value="" disabled selected>Month</option>
+                <option value="1">January</option><option value="2">February</option>
+                <option value="3">March</option><option value="4">April</option>
+                <option value="5">May</option><option value="6">June</option>
+                <option value="7">July</option><option value="8">August</option>
+                <option value="9">September</option><option value="10">October</option>
+                <option value="11">November</option><option value="12">December</option>
+              </select>
+              <select id="profile-dob-day"
+                class="auth-input w-20 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
+                       focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                <option value="" disabled selected>Day</option>
+              </select>
+              <div class="bg-osa-card border border-osa-border rounded-2xl px-3 py-3.5 text-center min-w-[56px]">
+                <p id="profile-age-display" class="text-osa-accent text-base font-bold leading-none">—</p>
+                <p class="text-osa-muted text-xs mt-0.5">yrs</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Birth Year (hidden, used for age calc) -->
+          <input id="profile-dob-year" type="number" placeholder="Birth year (e.g. 1998)"
+            min="1940" max="2015"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+          <!-- Gender -->
+          <select id="profile-gender"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+            <option value="" disabled selected>Gender</option>
+            <option value="Male">Male</option>
+            <option value="Female">Female</option>
+            <option value="Non-binary">Non-binary</option>
+            <option value="Prefer not to say">Prefer not to say</option>
+          </select>
+
+          <!-- Location -->
+          <input id="profile-location" type="text" placeholder="Current city / location"
+            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
+                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+
+          <!-- Save -->
+          <button id="profile-save-btn"
+            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
+                   active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-2">
+            Save & Enter Dashboard
+          </button>
+
+        </div>
+      </div>
+    </div>
+  </div>
+
   <!-- ─── AUTH SCREEN ────────────────────────────────────────────── -->
   <div id="auth-screen" class="fixed inset-0 z-[200] flex flex-col items-center justify-center px-6" style="background:#0a0a0a;">
     <div class="w-full max-w-xs">

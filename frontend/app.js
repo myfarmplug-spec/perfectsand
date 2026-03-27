@@ -97,6 +97,121 @@ async function logout() {
   location.reload();
 }
 
+// ─── Profile Setup ────────────────────────────────────────────────────────────
+
+function populateDayDropdown() {
+  const daySelect = document.getElementById('profile-dob-day');
+  daySelect.innerHTML = '<option value="" disabled selected>Day</option>';
+  for (let d = 1; d <= 31; d++) {
+    const opt = document.createElement('option');
+    opt.value = d;
+    opt.textContent = d;
+    daySelect.appendChild(opt);
+  }
+}
+
+function calcAge() {
+  const month = parseInt(document.getElementById('profile-dob-month').value);
+  const day   = parseInt(document.getElementById('profile-dob-day').value);
+  const year  = parseInt(document.getElementById('profile-dob-year').value);
+  const el    = document.getElementById('profile-age-display');
+
+  if (!month || !day || !year || year < 1920 || year > new Date().getFullYear()) {
+    el.textContent = '—'; return;
+  }
+
+  const today = new Date();
+  let age = today.getFullYear() - year;
+  if (today.getMonth() + 1 < month || (today.getMonth() + 1 === month && today.getDate() < day)) age--;
+  el.textContent = age >= 0 ? age : '—';
+}
+
+function showProfileScreen() {
+  const screen = document.getElementById('profile-screen');
+  screen.classList.remove('hidden');
+
+  populateDayDropdown();
+
+  document.getElementById('profile-dob-month').addEventListener('change', calcAge);
+  document.getElementById('profile-dob-day').addEventListener('change', calcAge);
+  document.getElementById('profile-dob-year').addEventListener('input', calcAge);
+  document.getElementById('profile-save-btn').addEventListener('click', saveProfile);
+}
+
+async function saveProfile() {
+  const fullName = document.getElementById('profile-fullname').value.trim();
+  const codeName = document.getElementById('profile-codename').value.trim();
+  const mobile   = document.getElementById('profile-mobile').value.trim();
+  const month    = document.getElementById('profile-dob-month').value;
+  const day      = document.getElementById('profile-dob-day').value;
+  const year     = document.getElementById('profile-dob-year').value.trim();
+  const gender   = document.getElementById('profile-gender').value;
+  const location = document.getElementById('profile-location').value.trim();
+
+  const errEl = document.getElementById('profile-error');
+  const errText = document.getElementById('profile-error-text');
+
+  if (!fullName || !codeName || !month || !day || !year || !gender) {
+    errText.textContent = 'Please fill in all required fields.';
+    errEl.classList.remove('hidden');
+    return;
+  }
+
+  const btn = document.getElementById('profile-save-btn');
+  btn.disabled = true;
+  btn.style.opacity = '0.6';
+  btn.textContent = 'Saving...';
+  errEl.classList.add('hidden');
+
+  // Calculate age from DOB
+  const today = new Date();
+  let age = today.getFullYear() - parseInt(year);
+  if (today.getMonth() + 1 < parseInt(month) ||
+     (today.getMonth() + 1 === parseInt(month) && today.getDate() < parseInt(day))) age--;
+
+  const dob = `${year}-${String(month).padStart(2,'0')}-${String(day).padStart(2,'0')}`;
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+
+  const { error } = await supabaseClient
+    .from('profiles')
+    .upsert({
+      user_id:       user.id,
+      full_name:     fullName,
+      code_name:     codeName,
+      mobile:        mobile,
+      date_of_birth: dob,
+      age:           age,
+      gender:        gender,
+      location:      location
+    }, { onConflict: 'user_id' });
+
+  if (error) {
+    console.error('Profile save error:', error);
+    errText.textContent = error.message;
+    errEl.classList.remove('hidden');
+    btn.disabled = false;
+    btn.style.opacity = '1';
+    btn.textContent = 'Save & Enter Dashboard';
+    return;
+  }
+
+  document.getElementById('profile-screen').classList.add('hidden');
+}
+
+async function checkProfile() {
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) return;
+
+  const { data } = await supabaseClient
+    .from('profiles')
+    .select('user_id')
+    .eq('user_id', user.id)
+    .maybeSingle();
+
+  if (!data) showProfileScreen();
+}
+
 // ─── App init (runs once after login) ─────────────────────────────────────────
 
 let _appInited = false;
@@ -117,6 +232,7 @@ function initApp() {
   startDayCountdown();
   if (Notification.permission !== 'granted') Notification.requestPermission();
   startNotificationSchedule();
+  checkProfile();
 }
 
 // ─── Auth init (runs on page load) ────────────────────────────────────────────
