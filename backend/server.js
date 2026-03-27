@@ -235,7 +235,6 @@ Maximum 3 sentences. Direct. No fluff. No emojis.`,
   }
 });
 
-// Health check
 app.get('/health', (_, res) => res.json({ status: 'ok' }));
 
 app.listen(PORT, () => {
