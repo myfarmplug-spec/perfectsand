@@ -1,3 +1,32 @@
+// ─── connect supabase ───
+const supabaseUrl = "https://njtoptrbskaklunzavzr.supabase.co";
+const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdG9wdHJic2tha2x1bnphdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDY0OTAsImV4cCI6MjA5MDE4MjQ5MH0.CJXWm6VFxymxsIfAd58KCs1p_4S04979vJUy9xH4gr0";
+
+const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+
+// ─── enable login ───
+async function signUp(email, password) {
+  const { data, error } = await supabase.auth.signUp({
+    email,
+    password
+  });
+  if (error) alert(error.message);
+  else alert("Check your email to confirm signup");
+}
+
+// ─── Supabase User Helpers ───
+async function getUser() {
+  const { data } = await supabase.auth.getUser();
+  return data.user;
+}
+
+// For quick testing
+async function quickLogin() {
+  await supabase.auth.signInWithPassword({
+    email: "test@test.com",
+    password: "123456"
+  });
+}
 // ─── Urge Journal ─────────────────────────────────────────────────────────────
 
 function getUrgeLog() {
@@ -295,13 +324,32 @@ function openUrgeForm() {
 }
 
 // Step 2: Form submitted → start timer
-function submitUrgeForm() {
-  if (!currentUrge.trigger) { showToast('Select a trigger first.'); return; }
-  if (!currentUrge.emotion) { showToast('Select how you feel.'); return; }
-
+async function handleTrigger(trigger, emotion) {
+  const user = await getUser();
+  if (!user) {
+    alert("Please login first");
+    return;
+  }
+  const { data, error } = await supabase
+    .from("urges")
+    .insert([
+      {
+        user_id: user.id,
+        trigger: trigger,
+        emotion: emotion,
+        resisted: false
+      }
+    ])
+    .select();
+  if (error) {
+    console.error(error);
+  } else {
+    console.log("Saved:", data);
+    localStorage.setItem("currentUrgeId", data[0].id);
+  }
+  // Continue with timer UI
   clearInterval(urgeFormCountdownInterval);
   document.getElementById('urge-form').classList.add('hidden');
-
   // Track stats
   const s = getStats();
   s.urges += 1;
@@ -309,29 +357,32 @@ function submitUrgeForm() {
   renderStats();
   setState('Under Pressure');
   setBattleMode(true);
-
   // Set start time
   currentUrge.startTime = Date.now();
-
   // Start timer
   urgeSeconds = 600;
   document.getElementById('urge-timer').textContent = formatTime(urgeSeconds);
   document.getElementById('urge-message').textContent = urgeMessages[0];
   document.getElementById('urge-mode').classList.remove('hidden');
-
   let msgIndex = 0;
   urgeInterval = setInterval(() => {
     urgeSeconds--;
     document.getElementById('urge-timer').textContent = formatTime(urgeSeconds);
     if (urgeSeconds <= 0) stopUrgeMode(true);
   }, 1000);
-
   messageInterval = setInterval(() => {
     msgIndex = (msgIndex + 1) % urgeMessages.length;
     const el = document.getElementById('urge-message');
     el.style.opacity = '0';
     setTimeout(() => { el.textContent = urgeMessages[msgIndex]; el.style.opacity = '1'; }, 400);
   }, 15000);
+}
+
+// Replace submitUrgeForm with a wrapper that uses handleTrigger
+function submitUrgeForm() {
+  if (!currentUrge.trigger) { showToast('Select a trigger first.'); return; }
+  if (!currentUrge.emotion) { showToast('Select how you feel.'); return; }
+  handleTrigger(currentUrge.trigger, currentUrge.emotion);
 }
 
 // Step 3: Timer stopped
@@ -347,6 +398,7 @@ function stopUrgeMode(resisted = false) {
   currentUrge.duration = Math.round((Date.now() - (currentUrge.startTime || Date.now())) / 1000);
 
   if (resisted) {
+    markResisted();
     const s = getStats();
     s.resisted += 1;
     saveStats(s);
@@ -359,6 +411,17 @@ function stopUrgeMode(resisted = false) {
     setState('Recovering');
     finaliseUrgeEntry('Left the situation');
   }
+}
+
+// Step 3b: Mark urge as resisted in Supabase
+async function markResisted() {
+  const urgeId = localStorage.getItem("currentUrgeId");
+  if (!urgeId) return;
+  const { error } = await supabase
+    .from("urges")
+    .update({ resisted: true })
+    .eq("id", urgeId);
+  if (error) console.error(error);
 }
 
 // Step 4: Save action and complete entry
