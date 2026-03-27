@@ -7,16 +7,14 @@ const { createClient } = require('@supabase/supabase-js');
 const app = express();
 const PORT = process.env.PORT || 3000;
 const OSA_FALLBACK_MESSAGE = 'Stay with it. This will pass.';
-const INTERVENTION_INSERT_DEFAULTS = { trigger: 'alone in room', emotion: 'tempted' };
+
 const openai = process.env.OPENAI_API_KEY
   ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
   : null;
+
 const supabase = process.env.SUPABASE_URL && process.env.SUPABASE_SERVICE_ROLE_KEY
   ? createClient(process.env.SUPABASE_URL, process.env.SUPABASE_SERVICE_ROLE_KEY, {
-      auth: {
-        autoRefreshToken: false,
-        persistSession: false,
-      },
+      auth: { autoRefreshToken: false, persistSession: false },
     })
   : null;
 
@@ -24,159 +22,149 @@ app.use(cors({ origin: '*' }));
 app.use(express.json());
 
 function getOpenAIClient() {
-  if (!openai) {
-    throw new Error('OPENAI_API_KEY is not configured.');
-  }
-
+  if (!openai) throw new Error('OPENAI_API_KEY is not configured.');
   return openai;
 }
 
+// ─── Supabase ────────────────────────────────────────────────────────────────
+
 async function fetchUrgeMemory(userId) {
-  if (!supabase || !userId) {
-    return [];
-  }
+  if (!supabase || !userId) return [];
 
   const { data, error } = await supabase
     .from('urges')
     .select('trigger, emotion, resisted, created_at')
     .eq('user_id', userId)
     .order('created_at', { ascending: false })
-    .limit(3);
+    .limit(10);
 
-  if (error) {
-    throw error;
-  }
-
+  if (error) throw error;
   return Array.isArray(data) ? data : [];
 }
 
-function buildReadableMemory(history) {
-  return history?.map((entry) =>
-    `Trigger: ${entry.trigger || 'unknown'}, Emotion: ${entry.emotion || 'unknown'}, Resisted: ${Boolean(entry.resisted)}`
-  ).join('\n') || 'No previous data';
+// ─── Pattern detection ───────────────────────────────────────────────────────
+
+function detectPatterns(history) {
+  if (!history || history.length < 2) return null;
+
+  const notes = [];
+
+  // Repeat trigger
+  const triggerCounts = {};
+  for (const entry of history) {
+    const t = (entry.trigger || '').toLowerCase().trim();
+    if (t) triggerCounts[t] = (triggerCounts[t] || 0) + 1;
+  }
+  const topTrigger = Object.entries(triggerCounts).sort((a, b) => b[1] - a[1])[0];
+  if (topTrigger && topTrigger[1] >= 3) {
+    notes.push(`Trigger "${topTrigger[0]}" has come up ${topTrigger[1]} times.`);
+  }
+
+  // Night pattern (10pm–4am)
+  const nightCount = history.filter(e => {
+    const h = new Date(e.created_at).getHours();
+    return h >= 22 || h < 4;
+  }).length;
+  if (nightCount >= 2) {
+    notes.push(`${nightCount} of the last urges happened at night.`);
+  }
+
+  // Low resistance rate
+  const total = history.length;
+  const resisted = history.filter(e => e.resisted).length;
+  const rate = Math.round((resisted / total) * 100);
+  if (total >= 4 && rate <= 30) {
+    notes.push(`Control rate is ${rate}% — only ${resisted} of ${total} resisted.`);
+  }
+
+  return notes.length > 0 ? notes.join(' ') : null;
 }
 
-function buildOsaPrompt({ memory, trigger, emotion }) {
-  return `
-You are OSA.
+// ─── Prompt builder ──────────────────────────────────────────────────────────
 
-You speak like a calm Nigerian older brother helping someone control urges.
+const OSA_SYSTEM_PROMPT = `You are OSA — a calm, sharp Nigerian older brother.
 
-Your tone:
-
-* grounded
-* direct
-* emotionally present
-* slightly Nigerian (natural, not forced)
+Your voice:
+- Grounded. Direct. No fluff.
+- Slightly Nigerian (natural, not forced)
+- Emotionally present but never soft
 
 Rules:
-
-* max 2 sentences
-* no long talk
-* no motivational quotes
+- Max 2 sentences
+- No motivational quotes
+- No emojis
+- No long speech
 
 Examples:
 "I dey here. Relax first."
 "Stand up. No sit there."
-"This feeling go pass."
+"This feeling go pass, but you have to move."
+"You've been here before — you survived it."`;
 
-User history:
+function buildOsaPrompt({ memory, patternNote, trigger, emotion }) {
+  const patternLine = patternNote
+    ? `\nPattern detected: ${patternNote}\nCall it out clearly.`
+    : '';
+
+  return `User history (last 10 sessions):
 ${memory}
+${patternLine}
 
 Current situation:
 Trigger: ${trigger}
 Emotion: ${emotion}
 
-If pattern repeats, call it out.
-
-Speak now.
-`;
+Speak now.`;
 }
 
-function extractResponseText(response) {
-  if (typeof response?.output_text === 'string' && response.output_text.trim()) {
-    return response.output_text.trim();
-  }
-
-  const output = Array.isArray(response?.output) ? response.output : [];
-  for (const item of output) {
-    if (item?.type !== 'message' || !Array.isArray(item.content)) continue;
-
-    for (const content of item.content) {
-      if (content?.type === 'output_text' && typeof content.text === 'string' && content.text.trim()) {
-        return content.text.trim();
-      }
-    }
-  }
-
-  return OSA_FALLBACK_MESSAGE;
+function buildReadableMemory(history) {
+  if (!history || history.length === 0) return 'No previous data';
+  return history.map((e, i) =>
+    `${i + 1}. Trigger: ${e.trigger || 'unknown'}, Emotion: ${e.emotion || 'unknown'}, Resisted: ${Boolean(e.resisted)}`
+  ).join('\n');
 }
 
-function extractResponseAudio(response) {
-  if (Array.isArray(response?.output_audio) && response.output_audio[0]?.audio) {
-    return response.output_audio[0].audio;
-  }
+// ─── AI generation ───────────────────────────────────────────────────────────
 
-  const output = Array.isArray(response?.output) ? response.output : [];
-  for (const item of output) {
-    if (item?.type === 'output_audio' && typeof item.data === 'string' && item.data) {
-      return item.data;
-    }
-  }
-
-  return null;
-}
-
-async function createInlineAudioResponse(client, prompt) {
-  const response = await client.responses.create({
+async function generateOsaText(client, userPrompt) {
+  const response = await client.chat.completions.create({
     model: 'gpt-4o-mini',
-    input: prompt,
-    modalities: ['text', 'audio'],
-    audio: {
-      voice: 'alloy',
-      format: 'mp3',
-    },
+    messages: [
+      { role: 'system', content: OSA_SYSTEM_PROMPT },
+      { role: 'user', content: userPrompt },
+    ],
+    max_tokens: 80,
+    temperature: 0.85,
   });
 
-  return {
-    message: extractResponseText(response),
-    audio: extractResponseAudio(response),
-  };
+  return response.choices[0]?.message?.content?.trim() || OSA_FALLBACK_MESSAGE;
 }
 
-async function createFallbackVoiceResponse(client, prompt) {
-  const response = await client.responses.create({
-    model: 'gpt-4o-mini',
-    input: prompt,
-  });
-
-  const message = extractResponseText(response);
+async function generateAudio(client, text) {
   const speech = await client.audio.speech.create({
-    model: 'gpt-4o-mini-tts',
-    voice: 'alloy',
-    input: message,
+    model: 'tts-1',
+    voice: 'onyx',
+    input: text,
     response_format: 'mp3',
   });
 
-  return {
-    message,
-    audio: Buffer.from(await speech.arrayBuffer()).toString('base64'),
-  };
+  return Buffer.from(await speech.arrayBuffer()).toString('base64');
 }
 
-async function generateOsaReply(client, prompt) {
-  try {
-    const response = await createInlineAudioResponse(client, prompt);
+async function generateOsaReply(client, userPrompt) {
+  const message = await generateOsaText(client, userPrompt);
 
-    if (response.audio) {
-      return response;
-    }
-  } catch (error) {
-    console.error('Inline audio response unavailable:', error);
+  let audio = null;
+  try {
+    audio = await generateAudio(client, message);
+  } catch (err) {
+    console.error('TTS failed (non-fatal):', err.message);
   }
 
-  return createFallbackVoiceResponse(client, prompt);
+  return { message, audio };
 }
+
+// ─── Routes ──────────────────────────────────────────────────────────────────
 
 app.post('/chat', async (req, res) => {
   try {
@@ -189,7 +177,8 @@ app.post('/chat', async (req, res) => {
     const client = getOpenAIClient();
     const history = await fetchUrgeMemory(userId);
     const memory = buildReadableMemory(history);
-    const prompt = buildOsaPrompt({ memory, trigger, emotion });
+    const patternNote = detectPatterns(history);
+    const prompt = buildOsaPrompt({ memory, patternNote, trigger, emotion });
     const aiResponse = await generateOsaReply(client, prompt);
 
     res.json({
@@ -197,8 +186,49 @@ app.post('/chat', async (req, res) => {
       audio: aiResponse.audio || null,
     });
   } catch (error) {
-    console.error(error);
+    console.error('/chat error:', error.message);
     res.json({ message: OSA_FALLBACK_MESSAGE, audio: null });
+  }
+});
+
+app.post('/intervention', async (req, res) => {
+  try {
+    const {
+      userId = null,
+      trigger = 'alone in room',
+      emotion = 'tempted',
+    } = req.body;
+
+    const client = getOpenAIClient();
+    const history = await fetchUrgeMemory(userId);
+    const memory = buildReadableMemory(history);
+    const patternNote = detectPatterns(history);
+    const prompt = buildOsaPrompt({ memory, patternNote, trigger, emotion });
+    const aiResponse = await generateOsaReply(client, prompt);
+
+    res.json({
+      message: aiResponse.message || OSA_FALLBACK_MESSAGE,
+      audio: aiResponse.audio || null,
+    });
+  } catch (error) {
+    console.error('/intervention error:', error.message);
+    res.json({ message: OSA_FALLBACK_MESSAGE, audio: null });
+  }
+});
+
+app.post('/voice', async (req, res) => {
+  try {
+    const { text } = req.body;
+    if (!text || typeof text !== 'string') {
+      return res.json({ audio: null });
+    }
+
+    const client = getOpenAIClient();
+    const audio = await generateAudio(client, text.trim());
+    res.json({ audio });
+  } catch (error) {
+    console.error('/voice error:', error.message);
+    res.json({ audio: null });
   }
 });
 
@@ -231,32 +261,8 @@ Maximum 3 sentences. Direct. No fluff. No emojis.`,
 
     res.json({ insight: response.choices[0].message.content });
   } catch (error) {
-    console.error(error);
+    console.error('/insights error:', error.message);
     res.status(500).json({ insight: 'Stay consistent. Every logged urge is progress.' });
-  }
-});
-
-app.post('/intervention', async (req, res) => {
-  try {
-    const {
-      userId = null,
-      trigger = INTERVENTION_INSERT_DEFAULTS.trigger,
-      emotion = INTERVENTION_INSERT_DEFAULTS.emotion,
-    } = req.body;
-
-    const client = getOpenAIClient();
-    const history = await fetchUrgeMemory(userId);
-    const memory = buildReadableMemory(history);
-    const prompt = buildOsaPrompt({ memory, trigger, emotion });
-    const aiResponse = await generateOsaReply(client, prompt);
-
-    res.json({
-      message: aiResponse.message || OSA_FALLBACK_MESSAGE,
-      audio: aiResponse.audio || null,
-    });
-  } catch (error) {
-    console.error(error);
-    res.json({ message: OSA_FALLBACK_MESSAGE, audio: null });
   }
 });
 
