@@ -2,7 +2,7 @@
 const supabaseUrl = "https://njtoptrbskaklunzavzr.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdG9wdHJic2tha2x1bnphdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDY0OTAsImV4cCI6MjA5MDE4MjQ5MH0.CJXWm6VFxymxsIfAd58KCs1p_4S04979vJUy9xH4gr0";
 
-const supabase = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
 
@@ -43,7 +43,7 @@ async function login(email, password) {
   setButtonLoading(btn, true, 'Signing in...');
   document.getElementById('auth-error').classList.add('hidden');
 
-  const { data, error } = await supabase.auth.signInWithPassword({
+  const { data, error } = await supabaseClient.auth.signInWithPassword({
     email: email,
     password: password
   });
@@ -65,7 +65,7 @@ async function signup(email, password) {
   setButtonLoading(btn, true, 'Creating account...');
   document.getElementById('auth-error').classList.add('hidden');
 
-  const { data, error } = await supabase.auth.signUp({
+  const { data, error } = await supabaseClient.auth.signUp({
     email: email,
     password: password
   });
@@ -93,7 +93,7 @@ async function signup(email, password) {
 // ─── logout ───────────────────────────────────────────────────────────────────
 
 async function logout() {
-  await supabase.auth.signOut();
+  await supabaseClient.auth.signOut();
   location.reload();
 }
 
@@ -123,7 +123,7 @@ function initApp() {
 
 async function initAuth() {
   // Check for existing session — hide auth instantly if already logged in
-  const { data: { session } } = await supabase.auth.getSession();
+  const { data: { session } } = await supabaseClient.auth.getSession();
   if (session) {
     document.getElementById('auth-screen').classList.add('hidden');
     initApp();
@@ -452,8 +452,8 @@ function openUrgeForm() {
 
 // Step 2: Form submitted → start timer
 async function handleTrigger(trigger, emotion) {
-  const { data: { user } } = await supabase.auth.getUser();
-  const { data, error } = await supabase
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  const { data, error } = await supabaseClient
     .from("urges")
     .insert([
       {
@@ -540,7 +540,7 @@ function stopUrgeMode(resisted = false) {
 async function markResisted() {
   const urgeId = localStorage.getItem("currentUrgeId");
   if (!urgeId) return;
-  const { error } = await supabase
+  const { error } = await supabaseClient
     .from("urges")
     .update({ resisted: true })
     .eq("id", urgeId);
