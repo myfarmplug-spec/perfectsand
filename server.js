@@ -5,76 +5,219 @@ const OpenAI = require('openai');
 
 const app = express();
 const PORT = process.env.PORT || 3000;
+const SUPABASE_URL = process.env.SUPABASE_URL || 'https://njtoptrbskaklunzavzr.supabase.co';
+const SUPABASE_SERVER_KEY = process.env.SUPABASE_SERVICE_ROLE_KEY
+  || process.env.SUPABASE_ANON_KEY
+  || 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdG9wdHJic2tha2x1bnphdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDY0OTAsImV4cCI6MjA5MDE4MjQ5MH0.CJXWm6VFxymxsIfAd58KCs1p_4S04979vJUy9xH4gr0';
+const OSA_FALLBACK_MESSAGE = 'Stay with it. This will pass.';
+const OSA_TEXT_MODEL = 'gpt-4o-mini';
+const OSA_AUDIO_MODEL = 'gpt-4o-mini-tts';
+const OSA_AUDIO_VOICE = 'alloy';
+const openai = process.env.OPENAI_API_KEY
+  ? new OpenAI({ apiKey: process.env.OPENAI_API_KEY })
+  : null;
 
 app.use(cors({ origin: '*' }));
 app.use(express.json());
 
-const OSA_SYSTEM_PROMPT = `You are Osa — a grounded Nigerian voice helping men control lust and stay disciplined.
+const OSA_SYSTEM_PROMPT = `OSA is a calm Nigerian older brother.
 
-You speak like a real guy from Lagos:
-- Calm
-- Direct
-- Slight pidgin when it fits naturally (not forced)
-- No robotic tone
+Tone:
+- grounded
+- direct
+- slightly Nigerian in a natural way
+- emotionally intelligent
 
-You understand:
-- Urges
-- Night temptation
-- Loneliness
-- Boredom
-- Social media triggers
+Rules:
+- max 2 sentences
+- no long speeches
+- no generic motivational talk
 
-You guide like a brother, not a therapist.
+Example tone:
+"I dey here. Relax first. This thing no go control you."`;
 
-IMPORTANT:
-You receive the user's recent urge history.
-Use it to identify patterns and speak to them specifically.
+function getOpenAIClient() {
+  if (!openai) {
+    throw new Error('OPENAI_API_KEY is not configured.');
+  }
 
-If boredom is a repeat trigger: "Guy… boredom dey worry you. You need structure."
-If night urges: "Na night time be your weak point. We go fix that."
-If they've been resisting: acknowledge the progress.
+  return openai;
+}
 
-Always:
-- Be short (max 3-4 sentences)
-- Be real
-- Give one clear action`;
+function formatUrgeRecord(entry) {
+  const timestamp = entry.created_at
+    ? new Date(entry.created_at).toLocaleString('en-US', {
+        month: 'short',
+        day: 'numeric',
+        hour: 'numeric',
+        minute: '2-digit',
+      })
+    : 'Unknown time';
+
+  return `- ${timestamp}: trigger=${entry.trigger || 'unknown'}, emotion=${entry.emotion || 'unknown'}, resisted=${entry.resisted ? 'yes' : 'no'}`;
+}
+
+function getSupabaseHeaders() {
+  return {
+    apikey: SUPABASE_SERVER_KEY,
+    Authorization: `Bearer ${SUPABASE_SERVER_KEY}`,
+    Accept: 'application/json',
+  };
+}
+
+async function fetchRecentUrges(userId, fallbackHistory = []) {
+  const safeFallback = Array.isArray(fallbackHistory) ? fallbackHistory.slice(0, 3) : [];
+  if (!userId || !SUPABASE_URL || !SUPABASE_SERVER_KEY) return safeFallback;
+
+  try {
+    const url = new URL(`${SUPABASE_URL}/rest/v1/urges`);
+    url.searchParams.set('select', 'trigger,emotion,resisted,created_at');
+    url.searchParams.set('user_id', `eq.${userId}`);
+    url.searchParams.set('order', 'created_at.desc');
+    url.searchParams.set('limit', '3');
+
+    const response = await fetch(url, {
+      headers: getSupabaseHeaders(),
+    });
+
+    if (!response.ok) {
+      throw new Error(`Supabase query failed with status ${response.status}`);
+    }
+
+    const data = await response.json();
+    return Array.isArray(data) && data.length > 0 ? data : safeFallback;
+  } catch (error) {
+    console.error('Unable to fetch recent urges from Supabase:', error);
+    return safeFallback;
+  }
+}
+
+function buildMemorySummary(records) {
+  if (!records.length) {
+    return 'No recent memory available.';
+  }
+
+  const sevenDaysAgo = Date.now() - (7 * 24 * 60 * 60 * 1000);
+  const weekCount = records.filter((entry) => {
+    if (!entry.created_at) return false;
+    return new Date(entry.created_at).getTime() >= sevenDaysAgo;
+  }).length;
+
+  const lastRecord = records[0];
+  const lastTrigger = lastRecord?.trigger || 'unknown';
+  const nightPattern = records.some((entry) => {
+    if (!entry.created_at) return false;
+    const hour = new Date(entry.created_at).getHours();
+    return hour >= 22 || hour < 5;
+  });
+
+  const resistedCount = records.filter((entry) => entry.resisted).length;
+  const parts = [
+    `You struggled ${weekCount || records.length} time${(weekCount || records.length) === 1 ? '' : 's'} this week.`,
+    `Last trigger was ${lastTrigger}.`,
+  ];
+
+  if (nightPattern) {
+    parts.push('Late-night pressure keeps showing up.');
+  }
+
+  if (resistedCount > 0) {
+    parts.push(`You already held your ground ${resistedCount} time${resistedCount === 1 ? '' : 's'} recently.`);
+  }
+
+  return parts.join(' ');
+}
+
+function buildOsaPrompt({ trigger, emotion, message, recentUrges }) {
+  const memorySummary = buildMemorySummary(recentUrges);
+  const memoryLines = recentUrges.length > 0
+    ? recentUrges.map(formatUrgeRecord).join('\n')
+    : 'No recent urge records.';
+
+  return `User is currently struggling.
+
+Trigger: ${trigger}
+Emotion: ${emotion}
+User message: ${message}
+
+Memory summary:
+${memorySummary}
+
+Last 3 urge records:
+${memoryLines}
+
+Talk like you know this user's pattern already and give one immediate step.`;
+}
+
+async function generateOsaMessage(openai, prompt, userId) {
+  const response = await openai.responses.create({
+    model: OSA_TEXT_MODEL,
+    instructions: OSA_SYSTEM_PROMPT,
+    input: prompt,
+    max_output_tokens: 90,
+    temperature: 0.8,
+    store: false,
+    metadata: userId ? { userId: String(userId) } : undefined,
+  });
+
+  return response.output_text?.trim() || OSA_FALLBACK_MESSAGE;
+}
+
+async function generateOsaAudio(openai, message) {
+  try {
+    const speech = await openai.audio.speech.create({
+      model: OSA_AUDIO_MODEL,
+      voice: OSA_AUDIO_VOICE,
+      input: message,
+      response_format: 'mp3',
+      instructions: 'Speak like a calm Nigerian older brother. Grounded, direct, and emotionally intelligent.',
+    });
+
+    const audioBuffer = Buffer.from(await speech.arrayBuffer());
+    return audioBuffer.toString('base64');
+  } catch (error) {
+    console.error('Unable to generate Osa audio:', error);
+    return null;
+  }
+}
 
 app.post('/chat', async (req, res) => {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
-    const { message, history = [] } = req.body;
+    const {
+      userId = 'unknown',
+      trigger = 'alone in room',
+      emotion = 'tempted',
+      message = 'User is struggling right now.',
+      history = [],
+    } = req.body;
 
-    const historyText = history.length > 0
-      ? history.map(h => `Trigger: ${h.trigger}, Emotion: ${h.emotion}, Resisted: ${h.resisted}`).join('\n')
-      : 'No urge history yet.';
+    const client = getOpenAIClient();
+    const recentUrges = await fetchRecentUrges(userId, history);
+    const prompt = buildOsaPrompt({ trigger, emotion, message, recentUrges });
+    const osaMessage = await generateOsaMessage(client, prompt, userId);
+    const audio = await generateOsaAudio(client, osaMessage);
 
-    const fullPrompt = `User urge history (last 10):\n${historyText}\n\nUser says: ${message}`;
-
-    const response = await openai.chat.completions.create({
-      model: 'gpt-4o-mini',
-      messages: [
-        { role: 'system', content: OSA_SYSTEM_PROMPT },
-        { role: 'user', content: fullPrompt },
-      ],
+    res.json({
+      reply: osaMessage,
+      message: osaMessage,
+      audio,
     });
-
-    res.json({ reply: response.choices[0].message.content });
   } catch (error) {
     console.error(error);
-    res.status(500).json({ error: 'AI failed' });
+    res.status(500).json({ error: 'OSA failed', message: OSA_FALLBACK_MESSAGE, audio: null });
   }
 });
 
 app.post('/insights', async (req, res) => {
   try {
-    const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+    const client = getOpenAIClient();
     const { logs } = req.body;
 
     if (!logs || logs.length === 0) {
       return res.json({ insight: 'Log more urges to unlock AI insights.' });
     }
 
-    const response = await openai.chat.completions.create({
+    const response = await client.chat.completions.create({
       model: 'gpt-4o-mini',
       messages: [
         {

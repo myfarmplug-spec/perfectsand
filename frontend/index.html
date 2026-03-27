@@ -151,12 +151,18 @@
   <div id="tab-content-chat" class="tab-content hidden flex-1 flex flex-col px-4 pb-4" style="height: calc(100vh - 160px);">
     <div class="flex items-center justify-between mb-1">
       <span class="text-xs text-osa-muted">1 token per message</span>
-      <div class="flex items-center gap-2">
+      <div class="flex items-center gap-3">
         <label for="voiceToggle" class="text-xs text-osa-muted tracking-widest uppercase cursor-pointer">Voice</label>
         <div class="relative">
           <input type="checkbox" id="voiceToggle" class="sr-only peer" />
           <div class="w-9 h-5 bg-osa-border rounded-full peer-checked:bg-osa-accent transition-colors duration-200 cursor-pointer" onclick="document.getElementById('voiceToggle').click()"></div>
           <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200 peer-checked:translate-x-4 pointer-events-none"></div>
+        </div>
+        <div class="flex items-center gap-2">
+          <label for="voiceVolume" class="text-xs text-osa-muted tracking-widest uppercase">Vol</label>
+          <input id="voiceVolume" type="range" min="0" max="1" step="0.05" value="0.85"
+            class="w-20 accent-[#c9a96e]" />
+          <span id="voiceVolumeValue" class="text-[11px] text-osa-muted tabular-nums">85%</span>
         </div>
       </div>
     </div>

@@ -2,55 +2,132 @@
 const supabaseUrl = "https://njtoptrbskaklunzavzr.supabase.co";
 const supabaseKey = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6Im5qdG9wdHJic2tha2x1bnphdnpyIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQ2MDY0OTAsImV4cCI6MjA5MDE4MjQ5MH0.CJXWm6VFxymxsIfAd58KCs1p_4S04979vJUy9xH4gr0";
 
-const supabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey);
+const supabaseClient = window.__perfectSandSupabaseClient
+  || (window.__perfectSandSupabaseClient = window.supabase.createClient(supabaseUrl, supabaseKey));
 const REMOTE_API_BASE = 'https://perfectsand.onrender.com';
 const INTERVENTION_DURATION_SECONDS = 600;
 const INTERVENTION_FALLBACK_MESSAGE = 'Stay with it. This will pass.';
+const SESSION_SAVE_MAX_ATTEMPTS = 2;
 const INTERVENTION_INSERT_DEFAULTS = {
-  trigger: 'Immediate intervention',
-  emotion: 'Under pressure',
+  trigger: 'alone in room',
+  emotion: 'tempted',
   resisted: false,
 };
 
 let interventionInterval = null;
-let activeInterventionUrgeId = null;
 let interventionSessionId = 0;
+let activeOsaAudio = null;
+let activeOsaAudioPlaybackId = 0;
 
-function getApiCandidates(path) {
+function getApiUrl(path) {
   const normalisedPath = path.startsWith('/') ? path : `/${path}`;
-  const candidates = [];
-
-  if (window.location?.origin?.startsWith('http')) {
-    candidates.push(new URL(normalisedPath, window.location.origin).toString());
-  }
-
-  candidates.push(`${REMOTE_API_BASE}${normalisedPath}`);
-  return [...new Set(candidates)];
+  return `${REMOTE_API_BASE}${normalisedPath}`;
 }
 
 async function postJson(path, payload) {
-  const endpoints = getApiCandidates(path);
-  let lastError = null;
+  const response = await fetch(getApiUrl(path), {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(payload),
+  });
 
-  for (const endpoint of endpoints) {
-    try {
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(payload),
-      });
-
-      if (!response.ok) {
-        throw new Error(`Request failed with status ${response.status}`);
-      }
-
-      return await response.json();
-    } catch (error) {
-      lastError = error;
-    }
+  let data = {};
+  try {
+    data = await response.json();
+  } catch {
+    data = {};
   }
 
-  throw lastError || new Error(`Unable to reach ${path}`);
+  if (!response.ok) {
+    throw new Error(data?.error || `Request failed with status ${response.status}`);
+  }
+
+  return data;
+}
+
+function wait(ms) {
+  return new Promise((resolve) => setTimeout(resolve, ms));
+}
+
+function getVoiceEnabled() {
+  return document.getElementById('voiceToggle')?.checked ?? true;
+}
+
+function getVoiceVolume() {
+  const slider = document.getElementById('voiceVolume');
+  const value = slider ? Number(slider.value) : 0.85;
+  return Number.isFinite(value) ? Math.min(1, Math.max(0, value)) : 0.85;
+}
+
+function updateVoiceVolumeLabel() {
+  const label = document.getElementById('voiceVolumeValue');
+  if (label) {
+    label.textContent = `${Math.round(getVoiceVolume() * 100)}%`;
+  }
+}
+
+function stopOsaAudio() {
+  if (!activeOsaAudio) return;
+  activeOsaAudio.pause();
+  activeOsaAudio.currentTime = 0;
+  activeOsaAudio = null;
+}
+
+async function playOsaAudio(audioBase64, { force = false } = {}) {
+  if (!audioBase64 || (!force && !getVoiceEnabled())) return;
+
+  activeOsaAudioPlaybackId += 1;
+  const playbackId = activeOsaAudioPlaybackId;
+  stopOsaAudio();
+
+  const audio = new Audio(`data:audio/mp3;base64,${audioBase64}`);
+  audio.volume = getVoiceVolume();
+  activeOsaAudio = audio;
+
+  audio.addEventListener('ended', () => {
+    if (playbackId === activeOsaAudioPlaybackId) {
+      activeOsaAudio = null;
+    }
+  }, { once: true });
+
+  try {
+    await audio.play();
+  } catch (error) {
+    if (playbackId === activeOsaAudioPlaybackId) {
+      activeOsaAudio = null;
+    }
+    console.error('Unable to play Osa audio:', error);
+  }
+}
+
+function initVoiceControls() {
+  const toggle = document.getElementById('voiceToggle');
+  const slider = document.getElementById('voiceVolume');
+  if (!toggle || !slider || toggle.dataset.bound === 'true') return;
+
+  const storedEnabled = localStorage.getItem('osaVoiceEnabled');
+  const storedVolume = parseFloat(localStorage.getItem('osaVoiceVolume') || '0.85');
+
+  toggle.checked = storedEnabled !== 'false';
+  slider.value = Number.isFinite(storedVolume) ? String(storedVolume) : '0.85';
+  updateVoiceVolumeLabel();
+
+  toggle.addEventListener('change', () => {
+    localStorage.setItem('osaVoiceEnabled', String(toggle.checked));
+    if (!toggle.checked) {
+      stopOsaAudio();
+    }
+  });
+
+  slider.addEventListener('input', () => {
+    localStorage.setItem('osaVoiceVolume', slider.value);
+    if (activeOsaAudio) {
+      activeOsaAudio.volume = getVoiceVolume();
+    }
+    updateVoiceVolumeLabel();
+  });
+
+  toggle.dataset.bound = 'true';
 }
 
 // ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -347,6 +424,7 @@ function initApp() {
   _appInited = true;
 
   document.getElementById('logout-btn').classList.remove('hidden');
+  initVoiceControls();
   initTrial();
   initDayStart();
   initOnboarding();
@@ -416,14 +494,19 @@ function saveUrgeLog(log) {
   localStorage.setItem('urgeLog', JSON.stringify(log));
 }
 
+function createInterventionState() {
+  return {
+    trigger: INTERVENTION_INSERT_DEFAULTS.trigger,
+    emotion: INTERVENTION_INSERT_DEFAULTS.emotion,
+    action: null,
+    startTime: null,
+    resisted: false,
+    sessionSaved: false,
+  };
+}
+
 // Active intervention state
-let currentUrge = {
-  trigger: null,
-  emotion: null,
-  action: null,
-  startTime: null,
-  resisted: false,
-};
+let currentUrge = createInterventionState();
 
 // ─── Stats ────────────────────────────────────────────────────────────────────
 
@@ -664,6 +747,16 @@ function formatTime(s) {
   return `${Math.floor(s / 60).toString().padStart(2, '0')}:${(s % 60).toString().padStart(2, '0')}`;
 }
 
+function getLiveInterventionContext() {
+  const savedTrigger = localStorage.getItem('userTrigger')?.trim();
+  const hour = new Date().getHours();
+
+  return {
+    trigger: savedTrigger || (hour >= 22 || hour < 5 ? 'night habit' : INTERVENTION_INSERT_DEFAULTS.trigger),
+    emotion: hour >= 22 || hour < 5 ? 'restless' : INTERVENTION_INSERT_DEFAULTS.emotion,
+  };
+}
+
 function getFallbackUrgeEntries(limit = null) {
   const localEntries = getUrgeLog()
     .map((entry, index) => ({
@@ -836,48 +929,53 @@ function startInterventionTimer() {
   }, 1000);
 }
 
-async function createInterventionUrge(userId) {
-  const { data, error } = await supabaseClient
-    .from('urges')
-    .insert([{ user_id: userId, ...INTERVENTION_INSERT_DEFAULTS }])
-    .select('id, trigger, emotion, resisted, created_at')
-    .single();
-
-  if (error) throw error;
-  return data;
+function buildInterventionRequest(userId) {
+  return {
+    user_id: userId,
+    trigger: currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+    emotion: currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+    resisted: false,
+  };
 }
 
-async function requestInterventionMessage(history) {
+async function requestInterventionMessage({ userId, trigger, emotion, history }) {
   const data = await postJson('/chat', {
+    userId,
+    trigger,
+    emotion,
     message: 'User is experiencing an urge right now. Respond immediately.',
     history,
   });
 
-  return data?.reply?.trim() || INTERVENTION_FALLBACK_MESSAGE;
+  return {
+    message: data?.message?.trim() || data?.reply?.trim() || INTERVENTION_FALLBACK_MESSAGE,
+    audio: data?.audio || null,
+  };
 }
 
 async function syncInterventionState(userId, sessionId) {
   try {
-    const urge = await createInterventionUrge(userId);
+    const urge = buildInterventionRequest(userId);
     if (sessionId !== interventionSessionId) return;
 
-    activeInterventionUrgeId = urge?.id || null;
-    localStorage.setItem('currentUrgeId', activeInterventionUrgeId || '');
-    await renderStats();
-
     const history = await getUserHistory();
-    const reply = await requestInterventionMessage(history);
+    const response = await requestInterventionMessage({
+      userId,
+      trigger: urge?.trigger || currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+      emotion: urge?.emotion || currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+      history,
+    });
     if (sessionId !== interventionSessionId) return;
 
     setInterventionStatus('Osa is with you now.', 'ready');
-    setInterventionMessage(reply);
+    setInterventionMessage(response.message);
+    await playOsaAudio(response.audio, { force: true });
   } catch (error) {
     if (sessionId !== interventionSessionId) return;
 
     console.error('Unable to sync intervention state:', error);
-    setInterventionStatus('Osa could not connect. Stay with the steps.', 'error');
+    setInterventionStatus('Hold the line.', 'ready');
     setInterventionMessage(INTERVENTION_FALLBACK_MESSAGE);
-    showToast('Intervention started, but sync failed.');
   }
 }
 
@@ -891,9 +989,11 @@ async function startBattleMode() {
   }
 
   interventionSessionId += 1;
-  activeInterventionUrgeId = null;
-  localStorage.removeItem('currentUrgeId');
-  currentUrge = { trigger: null, emotion: null, action: null, startTime: Date.now(), resisted: false };
+  currentUrge = {
+    ...createInterventionState(),
+    ...getLiveInterventionContext(),
+    startTime: Date.now(),
+  };
 
   resetInterventionUI();
   setInterventionVisible(true);
@@ -903,29 +1003,62 @@ async function startBattleMode() {
   void syncInterventionState(user.id, interventionSessionId);
 }
 
-function dismissIntervention() {
-  clearInterventionTimer();
-  interventionSessionId += 1;
-  activeInterventionUrgeId = null;
-  localStorage.removeItem('currentUrgeId');
-  setInterventionVisible(false);
-  resetInterventionUI();
-  setState('Recovering');
-  renderStats();
-  renderHistory();
-  renderInsights();
+async function saveInterventionSession(resisted) {
+  if (currentUrge.sessionSaved) return;
+
+  const { data: { user } } = await supabaseClient.auth.getUser();
+  if (!user) throw new Error('No user available to save the urge.');
+
+  const sessionPayload = {
+    user_id: user.id,
+    trigger: currentUrge.trigger || INTERVENTION_INSERT_DEFAULTS.trigger,
+    emotion: currentUrge.emotion || INTERVENTION_INSERT_DEFAULTS.emotion,
+    resisted: Boolean(resisted),
+    created_at: new Date().toISOString(),
+  };
+
+  let lastError = null;
+  for (let attempt = 1; attempt <= SESSION_SAVE_MAX_ATTEMPTS; attempt += 1) {
+    const { error } = await supabaseClient
+      .from('urges')
+      .insert([sessionPayload]);
+
+    if (!error) {
+      currentUrge.resisted = Boolean(resisted);
+      currentUrge.sessionSaved = true;
+      return;
+    }
+
+    lastError = error;
+
+    if (attempt < SESSION_SAVE_MAX_ATTEMPTS) {
+      await wait(250);
+    }
+  }
+
+  throw lastError || new Error('Unable to save intervention session.');
 }
 
-async function markResisted() {
-  const urgeId = activeInterventionUrgeId || localStorage.getItem('currentUrgeId');
-  if (!urgeId) throw new Error('No urge record available to update.');
+async function dismissIntervention() {
+  clearInterventionTimer();
 
-  const { error } = await supabaseClient
-    .from('urges')
-    .update({ resisted: true })
-    .eq('id', urgeId);
+  if (currentUrge.startTime && !currentUrge.sessionSaved) {
+    try {
+      await saveInterventionSession(false);
+    } catch (error) {
+      console.error('Unable to save intervention session:', error);
+    }
+  }
 
-  if (error) throw error;
+  interventionSessionId += 1;
+  stopOsaAudio();
+  setInterventionVisible(false);
+  resetInterventionUI();
+  currentUrge = createInterventionState();
+  setState('Recovering');
+  await renderStats();
+  renderHistory();
+  renderInsights();
 }
 
 async function resistIntervention() {
@@ -940,8 +1073,7 @@ async function resistIntervention() {
   if (dismissBtn) dismissBtn.disabled = true;
 
   try {
-    await markResisted();
-    currentUrge.resisted = true;
+    await saveInterventionSession(true);
     setState('In Control');
     setInterventionStatus('You stayed in control.', 'success');
     setInterventionMessage('You stayed in control.');
@@ -949,9 +1081,9 @@ async function resistIntervention() {
   } catch (error) {
     console.error('Unable to mark urge as resisted:', error);
     setState('In Control');
-    setInterventionStatus('You stayed in control, but sync failed.', 'error');
+    setInterventionStatus('You stayed in control.', 'success');
     setInterventionMessage('You stayed in control.');
-    showToast('You stayed in control, but the log did not sync.');
+    showToast('You stayed in control.');
   } finally {
     await renderStats();
     renderHistory();
@@ -959,10 +1091,10 @@ async function resistIntervention() {
 
     setTimeout(() => {
       interventionSessionId += 1;
-      activeInterventionUrgeId = null;
-      localStorage.removeItem('currentUrgeId');
+      stopOsaAudio();
       setInterventionVisible(false);
       resetInterventionUI();
+      currentUrge = createInterventionState();
     }, 700);
   }
 }
@@ -973,7 +1105,7 @@ function stopUrgeMode(resisted = false) {
     return;
   }
 
-  dismissIntervention();
+  void dismissIntervention();
 }
 
 // ─── History Rendering ────────────────────────────────────────────────────────
@@ -1327,23 +1459,24 @@ async function sendMessage() {
 
   try {
     const history = await getUserHistory();
-    const data = await postJson('/chat', { message: text, history });
+    const { data: { user } } = await supabaseClient.auth.getUser();
+    const data = await postJson('/chat', {
+      userId: user?.id,
+      ...getLiveInterventionContext(),
+      message: text,
+      history,
+    });
     loadingWrapper.remove();
 
-    if (data.reply) {
-      appendMessage(data.reply, 'osa');
-      if (document.getElementById('voiceToggle').checked) speak(data.reply);
+    const reply = data.reply || data.message;
+    if (reply) {
+      appendMessage(reply, 'osa');
+      await playOsaAudio(data.audio, { force: false });
     } else throw new Error('no reply');
-  } catch {
+  } catch (error) {
+    console.error('Unable to send message to Osa:', error);
     loadingWrapper.remove();
-    const fallback = [
-      'Stay grounded. This will pass.',
-      "You are in control. Don't give in.",
-      'Stand up. Change your environment now.',
-    ];
-    const reply = fallback[Math.floor(Math.random() * fallback.length)];
-    appendMessage(reply, 'osa');
-    if (document.getElementById('voiceToggle').checked) speak(reply);
+    appendMessage(INTERVENTION_FALLBACK_MESSAGE, 'osa');
   } finally {
     isSending = false;
     setInputLocked(false);
