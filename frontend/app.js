@@ -70,25 +70,38 @@ async function handleAuth() {
 
   setAuthLoading(true);
 
-  try {
-    if (authMode === 'login') {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) { showAuthError(error.message); setAuthLoading(false); }
-      // success → onAuthStateChange fires → hideAuthScreen + initApp
+  if (authMode === 'login') {
+    const { data, error } = await supabase.auth.signInWithPassword({
+      email: email,
+      password: password
+    });
+    if (error) {
+      console.error('Login error:', error);
+      showAuthError(error.message);
+      setAuthLoading(false);
     } else {
-      const { error } = await supabase.auth.signUp({ email, password });
-      if (error) { showAuthError(error.message); setAuthLoading(false); return; }
+      console.log('Login success:', data);
+      hideAuthScreen();
+      initApp();
+    }
+  } else {
+    const { data, error } = await supabase.auth.signUp({
+      email: email,
+      password: password
+    });
+    if (error) {
+      console.error('Signup error:', error);
+      showAuthError(error.message);
+      setAuthLoading(false);
+    } else {
+      console.log('Signup success:', data);
       setAuthLoading(false);
       showAuthError('Account created! Check your email to confirm, then sign in.', true);
-      // Switch back to login mode
       authMode = 'login';
       document.getElementById('auth-heading').textContent = 'Welcome back';
       document.getElementById('auth-submit').textContent = 'Sign In';
       document.getElementById('auth-toggle').innerHTML = `Don't have an account? <button onclick="toggleAuthMode()" class="text-osa-accent font-semibold ml-1 hover:underline">Create account</button>`;
     }
-  } catch {
-    showAuthError('Something went wrong. Please try again.');
-    setAuthLoading(false);
   }
 }
 
