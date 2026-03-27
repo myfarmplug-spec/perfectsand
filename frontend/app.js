@@ -26,12 +26,14 @@ function setButtonLoading(btn, loading, label) {
   btn.textContent = label;
 }
 
-function hideAuthScreen() {
+// Enter the app — hide auth screen and boot dashboard
+function enterApp() {
   const screen = document.getElementById('auth-screen');
   screen.style.pointerEvents = 'none';
-  screen.style.transition = 'opacity 0.4s ease';
+  screen.style.transition = 'opacity 0.35s ease';
   screen.style.opacity = '0';
-  setTimeout(() => screen.classList.add('hidden'), 400);
+  setTimeout(() => screen.classList.add('hidden'), 350);
+  initApp();
 }
 
 // ─── login ────────────────────────────────────────────────────────────────────
@@ -52,8 +54,7 @@ async function login(email, password) {
     setButtonLoading(btn, false, 'Sign In');
   } else {
     console.log('Login success:', data);
-    hideAuthScreen();
-    initApp();
+    enterApp();
   }
 }
 
@@ -73,11 +74,20 @@ async function signup(email, password) {
     console.error('Signup error:', error);
     showAuthMessage(error.message);
     setButtonLoading(btn, false, 'Create Account');
-  } else {
-    console.log('Signup success:', data);
-    setButtonLoading(btn, false, 'Create Account');
-    showAuthMessage('Account created. Check your email to confirm, then sign in.', true);
+    return;
   }
+
+  console.log('Signup success:', data);
+
+  // If Supabase returned a session immediately (email confirmation OFF), enter app
+  if (data.session) {
+    enterApp();
+    return;
+  }
+
+  // Email confirmation is ON — ask user to confirm then login
+  setButtonLoading(btn, false, 'Create Account');
+  showAuthMessage('Account created! Check your email to confirm, then sign in.', true);
 }
 
 // ─── logout ───────────────────────────────────────────────────────────────────
@@ -112,10 +122,10 @@ function initApp() {
 // ─── Auth init (runs on page load) ────────────────────────────────────────────
 
 async function initAuth() {
-  // Check for existing session
+  // Check for existing session — hide auth instantly if already logged in
   const { data: { session } } = await supabase.auth.getSession();
   if (session) {
-    hideAuthScreen();
+    document.getElementById('auth-screen').classList.add('hidden');
     initApp();
   }
 
