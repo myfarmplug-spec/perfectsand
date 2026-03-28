@@ -22,7 +22,7 @@ import { cn } from "@/lib/utils";
 
 export function DashboardView() {
   const router = useRouter();
-  const { state, startBattle, lockToday } = useAppState();
+  const { state, lockToday } = useAppState();
   const heroLabel = state.controlLevel >= 65 ? "You’re building momentum" : "Strong today 🔥";
   const missionProgress = [
     {
@@ -43,7 +43,6 @@ export function DashboardView() {
   ];
 
   function handleUrgePress() {
-    startBattle(state.profile.primaryTrigger ?? "Porn / Sexual urges", "Tempted");
     router.push("/urge");
   }
 

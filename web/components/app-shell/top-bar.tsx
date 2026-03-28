@@ -10,12 +10,12 @@ import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 const pageTitles: Record<string, { title: string; subtitle: string }> = {
-  "/dashboard": { title: "Perfect Sand", subtitle: "Build unbreakable discipline. One urge at a time." },
+  "/dashboard": { title: "Perfect Sand", subtitle: "Build discipline. One urge at a time." },
   "/today":     { title: "Today's Mission", subtitle: "Complete these to build your sand strong." },
   "/urge":      { title: "Urge Arena", subtitle: "Urges come. You stay in control." },
   "/osa":       { title: "Talking with Osa", subtitle: "Osa is here when the pressure hits." },
   "/me":        { title: "Me", subtitle: "Track the proof that you are getting stronger." },
-  "/pricing":   { title: "Keep the Fire Burning", subtitle: "Fair pricing. Strong support. No stress." },
+  "/pricing":   { title: "Tokens", subtitle: "Earn through discipline." },
 };
 
 export function TopBar() {
@@ -24,32 +24,30 @@ export function TopBar() {
   const heading = pageTitles[pathname] ?? pageTitles["/dashboard"];
 
   return (
-    <header className="sticky top-0 z-40 border-b border-white/6 bg-[#0f1117]/90 px-4 pb-4 pt-safe-top backdrop-blur-xl">
-      <div className="mx-auto flex max-w-6xl items-center gap-3 pt-4">
+    <header className="sticky top-0 z-40 border-b border-white/6 bg-[#0f1117]/90 backdrop-blur-xl">
+      <div className="mx-auto flex max-w-lg items-center gap-3 px-4 py-3">
         <div className="min-w-0 flex-1">
-          <p className="text-xs uppercase tracking-[0.24em] text-sand-300/80">Voice of Osa</p>
-          <div className="flex items-center gap-2">
-            <h1 className="truncate text-xl font-semibold text-white sm:text-2xl">
-              {heading.title}
-            </h1>
-            {state.dayLocked && <Badge variant="control">Locked Today</Badge>}
-          </div>
-          <p className="truncate text-sm text-ink-100/70">{heading.subtitle}</p>
+          <h1 className="truncate text-base font-semibold text-white sm:text-lg">
+            {heading.title}
+          </h1>
+          <p className="hidden truncate text-xs text-ink-100/60 sm:block">{heading.subtitle}</p>
         </div>
 
-        <div className="flex items-center gap-2">
-          <Link href="/pricing" className="min-w-0">
+        <div className="flex shrink-0 items-center gap-2">
+          {state.dayLocked && (
+            <Badge variant="control" className="hidden sm:flex">Locked</Badge>
+          )}
+          <Link href="/pricing">
             <div className={cn(
-              "rounded-full border border-sand-500/20 bg-sand-500/10 px-3 py-2 text-right transition hover:bg-sand-500/14"
+              "rounded-full border border-sand-500/20 bg-sand-500/10 px-3 py-1.5 transition hover:bg-sand-500/14"
             )}>
               <p className="text-sm font-semibold text-sand-100">🪙 {state.profile.tokens}</p>
-              <p className="text-xs text-sand-300/80">Buy</p>
             </div>
           </Link>
-          <Button asChild variant="secondary" size="icon" className="shrink-0">
+          <Button asChild variant="secondary" size="icon" className="size-9 shrink-0">
             <Link href="/me" aria-label="Profile">
-              <Avatar className="size-11 border-0 bg-transparent">
-                <AvatarFallback>{state.profile.initials}</AvatarFallback>
+              <Avatar className="size-9 border-0 bg-transparent">
+                <AvatarFallback className="text-xs">{state.profile.initials}</AvatarFallback>
               </Avatar>
             </Link>
           </Button>
