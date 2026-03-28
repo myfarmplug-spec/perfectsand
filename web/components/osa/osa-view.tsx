@@ -2,8 +2,7 @@
 
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "framer-motion";
-import { Coins, LoaderCircle, MessageCircle, SendHorizontal } from "lucide-react";
-import Link from "next/link";
+import { LoaderCircle, MessageCircle, SendHorizontal } from "lucide-react";
 
 import { useAppState } from "@/components/app-shell/app-provider";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
@@ -61,20 +60,18 @@ export function OsaView() {
                 </p>
               </div>
             </div>
-            <Link href="/pricing">
-              <Badge
-                variant="default"
-                className={`cursor-pointer ${
-                  tokenEmpty
-                    ? "border-red-500/30 bg-red-500/15 text-red-300"
-                    : tokenLow
-                    ? "border-orange-500/30 bg-orange-500/12 text-orange-300"
-                    : ""
-                }`}
-              >
-                🪙 {state.profile.tokens} tokens
-              </Badge>
-            </Link>
+            <Badge
+              variant="default"
+              className={
+                tokenEmpty
+                  ? "border-red-500/30 bg-red-500/15 text-red-300"
+                  : tokenLow
+                  ? "border-orange-500/30 bg-orange-500/12 text-orange-300"
+                  : ""
+              }
+            >
+              🪙 {state.profile.tokens} tokens
+            </Badge>
           </div>
 
           {!isOnline && (
@@ -84,14 +81,10 @@ export function OsaView() {
           )}
 
           {tokenEmpty && (
-            <div className="mt-3 flex items-center justify-between gap-3 rounded-[14px] border border-red-500/20 bg-red-500/8 px-4 py-2.5">
-              <p className="text-sm text-red-300">Out of tokens. Top up to talk to Osa.</p>
-              <Link href="/pricing">
-                <Button size="sm" variant="secondary" className="shrink-0">
-                  <Coins className="size-3.5" />
-                  Buy tokens
-                </Button>
-              </Link>
+            <div className="mt-3 rounded-[14px] border border-red-500/20 bg-red-500/8 px-4 py-2.5">
+              <p className="text-sm text-red-300">
+                Out of tokens. Lock today&apos;s mission for +5 free tokens 🔒
+              </p>
             </div>
           )}
 
