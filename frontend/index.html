@@ -3,7 +3,12 @@
 <head>
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#0b1214" />
   <title>Perfect Sand</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com" />
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+  <link href="https://fonts.googleapis.com/css2?family=Inter:opsz,wght@14..32,400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet" />
+  <link rel="manifest" href="manifest.webmanifest" />
   <script src="https://cdn.tailwindcss.com"></script>
   <link rel="stylesheet" href="styles.css" />
   <script>
@@ -12,308 +17,584 @@
         extend: {
           colors: {
             osa: {
-              bg: '#0d0d0d', card: '#1a1a1a', border: '#2a2a2a',
-              accent: '#c9a96e', accentDark: '#a07840',
-              text: '#e8e8e8', muted: '#888888',
-              user: '#1e3a5f', bot: '#1f2a1f',
+              bg: '#0b1214',
+              card: '#111b20',
+              border: '#24333b',
+              accent: '#d4a017',
+              accentDark: '#b8860b',
+              text: '#f6efe2',
+              muted: '#94a5ad',
+              user: '#163247',
+              bot: '#15211b',
             }
           }
         }
       }
     }
   </script>
+  <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/canvas-confetti@1.9.3/dist/confetti.browser.min.js"></script>
 </head>
-<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js"></script>
-<body class="bg-osa-bg text-osa-text min-h-screen flex flex-col">
+<body class="bg-osa-bg text-osa-text min-h-screen">
+  <div class="app-shell relative min-h-screen overflow-x-hidden">
+    <div class="ambient ambient-top"></div>
+    <div class="ambient ambient-bottom"></div>
 
-  <!-- Header -->
-  <header class="flex items-center justify-between px-5 pt-8 pb-4">
-    <div>
-      <h1 class="text-xl font-semibold text-osa-text tracking-tight">Perfect Sand</h1>
-      <p class="text-xs text-osa-muted mt-0.5">by Voice of Osa</p>
-    </div>
-    <div class="flex items-center gap-3">
-      <div id="token-badge" class="flex flex-col items-center bg-osa-card border border-osa-border rounded-2xl px-3 py-2 cursor-pointer" onclick="showTokenInfo()">
-        <span id="token-count" class="text-lg font-bold text-yellow-400">10</span>
-        <span class="text-xs text-osa-muted tracking-widest uppercase">tokens</span>
-      </div>
-      <div class="flex flex-col items-center bg-osa-card border border-osa-border rounded-2xl px-3 py-2">
-        <span id="streak-count" class="text-2xl font-bold text-osa-accent">0</span>
-        <span class="text-xs text-osa-muted tracking-widest uppercase">streak</span>
-      </div>
-      <button id="logout-btn" onclick="logout()" class="hidden flex flex-col items-center bg-osa-card border border-osa-border rounded-2xl px-3 py-2 hover:border-red-900/50 transition-colors">
-        <span class="text-base">↩</span>
-        <span class="text-xs text-osa-muted tracking-widest uppercase">out</span>
-      </button>
-    </div>
-  </header>
-
-  <!-- Tab Nav -->
-  <nav class="flex gap-1 mx-4 mt-2 mb-4 bg-osa-card rounded-2xl p-1 border border-osa-border">
-    <button onclick="showTab('dashboard')" id="tab-dashboard"
-      class="tab-btn flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200">
-      Home
-    </button>
-    <button onclick="showTab('chat')" id="tab-chat"
-      class="tab-btn flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200">
-      Osa
-    </button>
-    <button onclick="showTab('history')" id="tab-history"
-      class="tab-btn flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200">
-      Pattern
-    </button>
-    <button onclick="showTab('guide')" id="tab-guide"
-      class="tab-btn flex-1 py-2.5 rounded-xl text-xs font-semibold tracking-wide transition-all duration-200">
-      Guide
-    </button>
-  </nav>
-
-  <!-- ─── DASHBOARD TAB ────────────────────────────────────────────── -->
-  <div id="tab-content-dashboard" class="tab-content flex-1 flex flex-col px-4 gap-4 pb-8">
-
-    <!-- Current State -->
-    <div class="bg-osa-card border border-osa-border rounded-2xl px-4 py-3 flex items-center justify-between">
-      <span class="text-osa-muted text-xs uppercase tracking-widest">State</span>
-      <span id="user-state" class="text-osa-text text-sm font-semibold">Focused</span>
-    </div>
-
-    <!-- 24hr Countdown -->
-    <div class="bg-osa-card border border-osa-border rounded-2xl px-4 py-4">
-      <div class="flex items-center justify-between mb-2">
-        <span class="text-osa-muted text-xs uppercase tracking-widest">Today's Mission</span>
-        <span id="day-countdown" class="text-osa-accent text-sm font-bold tabular-nums">—</span>
-      </div>
-      <!-- Progress Bar -->
-      <div class="w-full bg-osa-border rounded-full h-1.5">
-        <div id="day-progress-bar" class="h-1.5 rounded-full bg-osa-accent transition-all duration-1000" style="width: 0%"></div>
-      </div>
-    </div>
-
-    <!-- Stats Grid -->
-    <div class="grid grid-cols-3 gap-2">
-      <div class="card bg-osa-card border border-osa-border rounded-2xl p-3 text-center">
-        <p id="stat-urges" class="text-2xl font-bold text-red-400">0</p>
-        <p class="text-xs text-osa-muted mt-1 uppercase tracking-widest">Urges</p>
-      </div>
-      <div class="card bg-osa-card border border-osa-border rounded-2xl p-3 text-center">
-        <p id="stat-resisted" class="text-2xl font-bold text-green-400">0</p>
-        <p class="text-xs text-osa-muted mt-1 uppercase tracking-widest">Resisted</p>
-      </div>
-      <div class="card bg-osa-card border border-osa-border rounded-2xl p-3 text-center">
-        <p id="stat-rate" class="text-2xl font-bold text-osa-accent">—</p>
-        <p class="text-xs text-osa-muted mt-1 uppercase tracking-widest">Control</p>
-      </div>
-    </div>
-
-    <!-- Control Level -->
-    <div class="bg-osa-card border border-osa-border rounded-2xl px-4 py-3 flex items-center justify-between">
-      <span class="text-osa-muted text-xs uppercase tracking-widest">Level</span>
-      <span id="control-level" class="text-sm font-bold text-osa-accent">—</span>
-    </div>
-
-    <!-- Urge Button -->
-    <button id="urgeBtn" onclick="startBattleMode()"
-      class="w-full py-5 rounded-2xl border border-red-800/50 bg-red-950/30 text-red-300 font-bold text-lg tracking-wide
-             active:scale-95 transition-all duration-150 urge-pulse-red">
-      I Feel an Urge
-    </button>
-
-    <!-- Secondary Actions -->
-    <button onclick="showTab('chat')"
-      class="card w-full py-4 rounded-2xl border border-osa-border bg-osa-card text-osa-text font-semibold text-base tracking-wide
-             active:scale-95 transition-all duration-150 hover:border-osa-accent/50">
-      Speak to Osa
-    </button>
-
-    <button onclick="markDayComplete()"
-      class="card w-full py-4 rounded-2xl border border-osa-border bg-transparent text-osa-accent font-bold text-base tracking-wide
-             active:scale-95 transition-all duration-150 hover:bg-osa-card">
-      Lock Today
-    </button>
-
-    <!-- Streak Info -->
-    <div class="card bg-osa-card border border-osa-border rounded-2xl p-4">
-      <p class="text-osa-muted text-xs uppercase tracking-widest mb-2">Your Progress</p>
-      <p id="last-marked" class="text-osa-text text-sm">No days marked yet.</p>
-      <p id="completed-today" class="text-xs text-osa-muted mt-1"></p>
-    </div>
-
-    <!-- Slip Button -->
-    <button onclick="recordSlip()"
-      class="w-full py-3 rounded-2xl border border-osa-border/40 bg-transparent text-osa-muted text-xs tracking-widest uppercase
-             active:scale-95 transition-all duration-150 hover:border-red-900/50 hover:text-red-400/60">
-      I slipped — record it honestly
-    </button>
-
-  </div>
-
-  <!-- ─── CHAT TAB ──────────────────────────────────────────────────── -->
-  <div id="tab-content-chat" class="tab-content hidden flex-1 flex flex-col px-4 pb-4" style="height: calc(100vh - 160px);">
-    <div class="flex items-center justify-between mb-1">
-      <span class="text-xs text-osa-muted">1 token per message</span>
-      <div class="flex items-center gap-3">
-        <label for="voiceToggle" class="text-xs text-osa-muted tracking-widest uppercase cursor-pointer">Voice</label>
-        <div class="relative">
-          <input type="checkbox" id="voiceToggle" class="sr-only peer" />
-          <div class="w-9 h-5 bg-osa-border rounded-full peer-checked:bg-osa-accent transition-colors duration-200 cursor-pointer" onclick="document.getElementById('voiceToggle').click()"></div>
-          <div class="absolute top-0.5 left-0.5 w-4 h-4 bg-white rounded-full transition-transform duration-200 peer-checked:translate-x-4 pointer-events-none"></div>
+    <header class="px-5 pt-7 pb-4">
+      <div class="flex items-start justify-between gap-4">
+        <div>
+          <p class="eyebrow mb-2">Voice of Osa</p>
+          <h1 class="brand-heading text-3xl leading-none text-osa-text">Perfect Sand</h1>
+          <p class="mt-2 max-w-[15rem] text-sm leading-relaxed text-osa-muted">
+            Build unbreakable discipline. One urge at a time.
+          </p>
         </div>
-        <div class="flex items-center gap-2">
-          <label for="voiceVolume" class="text-xs text-osa-muted tracking-widest uppercase">Vol</label>
-          <input id="voiceVolume" type="range" min="0" max="1" step="0.05" value="0.85"
-            class="w-20 accent-[#c9a96e]" />
-          <span id="voiceVolumeValue" class="text-[11px] text-osa-muted tabular-nums">85%</span>
+        <div class="flex items-center gap-3">
+          <button id="token-badge"
+            class="token-badge shell-card text-left transition-all hover:border-osa-accent/40"
+            onclick="showTokenInfo()">
+            <span class="token-badge-amount">🪙 <span id="token-count">50</span> tokens</span>
+            <span class="token-badge-link">Buy</span>
+          </button>
+          <button id="logout-btn" onclick="showTab('me')"
+            class="hidden profile-avatar-button">
+            <span id="user-avatar-text" class="profile-avatar-text">PS</span>
+          </button>
         </div>
       </div>
-    </div>
-    <div id="chat-messages"
-      class="flex-1 overflow-y-auto flex flex-col gap-3 py-3 pr-1 scroll-smooth"
-      style="max-height: calc(100vh - 240px);">
-      <div class="flex justify-start">
-        <div class="bg-osa-bot border border-osa-border text-osa-text rounded-2xl rounded-tl-sm px-4 py-3 max-w-xs text-sm leading-relaxed">
-          <span class="block text-osa-accent text-xs font-semibold mb-1 tracking-wide uppercase">Osa</span>
-          I'm here. Talk to me. What's going on?
+    </header>
+
+    <div id="banner-stack" class="px-5 space-y-3"></div>
+
+    <main class="px-5 pb-28">
+      <section id="tab-content-dashboard" class="tab-content flex flex-col gap-4">
+        <div class="hidden">
+          <span id="stat-urges">0</span>
+          <span id="stat-resisted">0</span>
+          <span id="streak-count">0</span>
         </div>
-      </div>
-    </div>
-    <div class="flex gap-2 mt-2">
-      <input id="chat-input" type="text" placeholder="Say something..."
-        class="flex-1 bg-osa-card border border-osa-border rounded-2xl px-4 py-3 text-osa-text text-sm
-               placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200"
-        onkeydown="if(event.key==='Enter') sendMessage()" />
-      <button id="chatSendBtn" onclick="sendMessage()"
-        class="bg-osa-accent text-black font-bold rounded-2xl px-5 py-3 text-sm tracking-wide
-               active:scale-95 transition-all duration-150 hover:bg-osa-accentDark">
-        Send
-      </button>
-    </div>
-  </div>
+        <div class="hero-card shell-card overflow-hidden px-5 py-5">
+          <div class="hero-glow"></div>
+          <div class="relative z-10 flex flex-col gap-5">
+            <div class="flex items-start justify-between gap-4">
+              <div>
+                <p class="eyebrow mb-2 text-[#f7cf62]">Join 2,847 Nigerians building discipline</p>
+                <h2 class="brand-heading text-2xl leading-tight text-osa-text">
+                  You’re building momentum
+                </h2>
+                <p class="mt-2 max-w-[16rem] text-sm leading-relaxed text-osa-muted">
+                  Osa stays close, your routines stay clear, and every clean decision compounds.
+                </p>
+              </div>
+              <div id="user-state" class="hero-state-pill">Strong today 🔥</div>
+            </div>
 
-  <!-- ─── HISTORY TAB ───────────────────────────────────────────────── -->
-  <div id="tab-content-history" class="tab-content hidden flex-1 flex flex-col px-4 pb-8 gap-4 overflow-y-auto">
+            <div class="grid gap-4 sm:grid-cols-[1.1fr,0.9fr] sm:items-center">
+              <div class="space-y-4">
+                <div>
+                  <p class="dashboard-streak-label"><span id="hero-streak-text">0</span> Day Streak <span id="streak-flame-emoji" class="inline-block">🔥</span></p>
+                  <p id="control-ring-message" class="mt-2 text-sm leading-relaxed text-osa-muted">Strong today 🔥</p>
+                  <p id="hero-level-badge" class="hero-level-badge mt-2">Sand Guardian Lv 1</p>
+                </div>
 
-    <!-- Insights -->
-    <div id="insights-section" class="bg-osa-card border border-osa-border rounded-2xl p-4">
-      <div class="flex items-center justify-between mb-3">
-        <p class="text-osa-accent text-xs font-bold uppercase tracking-widest">Your Patterns</p>
-        <button onclick="generateAIInsights()" id="ai-insights-btn"
-          class="text-xs text-osa-accent border border-osa-accent/40 rounded-full px-3 py-1 hover:bg-osa-accent/10 transition-all">
-          Ask Osa
+                <div class="wins-strip">
+                  <div class="win-chip">
+                    <span class="win-chip-label">Urges Resisted</span>
+                    <span id="dashboard-win-urges" class="win-chip-value">0</span>
+                  </div>
+                  <div class="win-chip">
+                    <span class="win-chip-label">Routines Done</span>
+                    <span id="dashboard-win-routines" class="win-chip-value">0/3</span>
+                  </div>
+                  <div class="win-chip">
+                    <span class="win-chip-label">Control</span>
+                    <span id="stat-rate" class="win-chip-value">0%</span>
+                  </div>
+                </div>
+              </div>
+
+              <div class="flex items-center justify-center">
+                <div id="control-ring" class="control-ring" style="--progress: 0%;">
+                  <div class="control-ring-core">
+                    <span id="control-ring-percent" class="control-ring-percent">0%</span>
+                    <span class="control-ring-caption">Control level</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="rounded-[1.6rem] border border-white/8 bg-black/20 px-4 py-4">
+              <div class="flex items-center justify-between gap-3">
+                <div>
+                  <p class="text-[11px] uppercase tracking-[0.28em] text-osa-muted">Control level</p>
+                  <p id="control-level" class="mt-1 text-lg font-semibold text-osa-text">You’re building momentum</p>
+                </div>
+                <div class="text-right">
+                  <p class="text-[11px] uppercase tracking-[0.28em] text-osa-muted">Urges resisted today</p>
+                  <p id="resisted-today-count" class="mt-1 text-xl font-bold text-[#00c853]">0</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Today's Mission</p>
+              <p class="text-lg font-semibold text-osa-text">Three small wins. One calm day.</p>
+            </div>
+            <div class="text-right">
+              <p id="day-countdown" class="text-sm font-bold tabular-nums text-osa-accent">--</p>
+              <p class="text-xs text-osa-muted">until reset</p>
+            </div>
+          </div>
+
+          <div class="h-2 w-full overflow-hidden rounded-full bg-white/6">
+            <div id="day-progress-bar" class="h-2 rounded-full bg-osa-accent transition-all duration-700" style="width: 0%"></div>
+          </div>
+
+          <div class="mt-4 grid grid-cols-3 gap-2">
+            <button type="button" onclick="toggleMission('morning')" id="dashboard-mission-morning" class="mission-pill">
+              <span class="mission-pill-title">Morning</span>
+              <span class="mission-pill-copy">Reset</span>
+            </button>
+            <button type="button" onclick="toggleMission('work')" id="dashboard-mission-work" class="mission-pill">
+              <span class="mission-pill-title">Work</span>
+              <span class="mission-pill-copy">Deep focus</span>
+            </button>
+            <button type="button" onclick="toggleMission('night')" id="dashboard-mission-night" class="mission-pill">
+              <span class="mission-pill-title">Night</span>
+              <span class="mission-pill-copy">Shutdown</span>
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-3">
+          <button id="urgeBtn" onclick="startBattleMode()"
+            class="primary-danger-button urge-pulse-red">
+            I Feel an Urge
+          </button>
+          <div class="grid grid-cols-2 gap-3">
+            <button onclick="showTab('chat')" class="secondary-cta">
+              Speak to Osa
+            </button>
+            <button onclick="markDayComplete()" class="secondary-cta secondary-cta-ghost">
+              Lock Today ✓
+            </button>
+          </div>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <div class="mb-4 flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Today’s Wins</p>
+              <p class="text-lg font-semibold text-osa-text">Keep your sand strong with clean routines.</p>
+            </div>
+            <div class="rounded-full border border-[#00c853]/25 bg-[#00c853]/10 px-3 py-1 text-xs font-semibold text-[#8dffb3]">
+              Sand Guardian
+            </div>
+          </div>
+          <div class="grid grid-cols-2 gap-3">
+            <div class="rounded-[1.5rem] border border-white/8 bg-black/15 p-4 text-center">
+              <p id="habit-streak" class="text-4xl font-bold text-osa-accent">0</p>
+              <p class="mt-1 text-xs uppercase tracking-[0.24em] text-osa-muted">Current streak</p>
+            </div>
+            <div class="rounded-[1.5rem] border border-white/8 bg-black/15 p-4 text-center">
+              <p id="habit-longest" class="text-4xl font-bold text-osa-text">0</p>
+              <p class="mt-1 text-xs uppercase tracking-[0.24em] text-osa-muted">Longest streak</p>
+            </div>
+          </div>
+          <p id="habit-checkin-status" class="mt-4 text-sm leading-relaxed text-osa-muted">
+            Start your streak. The next clean decision is the one that counts.
+          </p>
+          <p id="last-marked" class="hidden"></p>
+          <p id="completed-today" class="hidden"></p>
+        </div>
+
+        <p class="px-1 text-center text-sm leading-relaxed text-osa-muted">
+          You are not your urges. You are the one who masters them.
+        </p>
+
+        <button onclick="recordSlip()"
+          class="w-full rounded-[1.6rem] border border-white/10 bg-black/10 px-4 py-3 text-xs font-semibold uppercase tracking-[0.24em] text-osa-muted transition-all hover:border-[#ff8d78]/30 hover:text-[#ffb19f]">
+          Record a slip honestly
         </button>
-      </div>
-      <div id="insights-content" class="space-y-2">
-        <p class="text-osa-muted text-xs">Log a few urges to see your patterns.</p>
-      </div>
-      <div id="ai-insight-box" class="hidden mt-3 pt-3 border-t border-osa-border">
-        <p class="text-osa-muted text-xs uppercase tracking-widest mb-2">Osa's Analysis</p>
-        <p id="ai-insight-text" class="text-osa-text text-sm leading-relaxed italic"></p>
-      </div>
-    </div>
+      </section>
 
-    <!-- Log Entries -->
-    <div class="flex items-center justify-between">
-      <p class="text-osa-muted text-xs uppercase tracking-widest">Urge Log</p>
-      <button onclick="clearHistory()" class="text-xs text-osa-muted/50 hover:text-red-400 transition-colors">Clear all</button>
-    </div>
-    <div id="history-list" class="flex flex-col gap-3">
-      <p id="history-empty" class="text-osa-muted text-sm text-center py-6">No entries yet.<br>Your journal starts with your first urge.</p>
-    </div>
-
-  </div>
-
-  <!-- ─── GUIDE TAB ─────────────────────────────────────────────────── -->
-  <div id="tab-content-guide" class="tab-content hidden flex-1 flex flex-col px-4 pb-8 gap-5 overflow-y-auto">
-
-    <button onclick="triggerEmergency()"
-      class="w-full py-4 rounded-2xl border border-red-700/60 bg-red-950/40 text-red-300 font-bold text-base tracking-wide
-             active:scale-95 transition-all duration-150 hover:bg-red-900/50 urge-pulse">
-      I'm about to relapse — Emergency
-    </button>
-
-    <div class="bg-osa-card border border-osa-border rounded-2xl p-4">
-      <p class="text-osa-accent text-xs font-bold uppercase tracking-widest mb-3">Daily System</p>
-      <div class="space-y-3">
-        <div>
-          <p class="text-osa-text text-sm font-semibold mb-1">🌅 Morning</p>
-          <ul class="text-osa-muted text-xs space-y-1 pl-2">
-            <li>— Wake. Don't touch your phone for 10 min.</li>
-            <li>— Cold water. Face first.</li>
-            <li>— 5 minutes of silence. Set one intention.</li>
-          </ul>
+      <section id="tab-content-mission" class="tab-content hidden flex flex-col gap-4">
+        <div class="shell-card px-5 py-5">
+          <p class="eyebrow mb-2">Today's Mission</p>
+          <h2 class="brand-heading text-2xl leading-tight text-osa-text">Today’s Mission</h2>
+          <p class="mt-2 text-sm leading-relaxed text-osa-muted">
+            Complete these to build your sand strong.
+          </p>
+          <div class="mt-5">
+            <div class="mb-2 flex items-center justify-between text-sm">
+              <span id="mission-progress-text" class="font-semibold text-osa-text">0 of 3 locked in</span>
+              <span id="mission-progress-percent" class="text-osa-muted">0%</span>
+            </div>
+            <div class="h-2 w-full overflow-hidden rounded-full bg-white/6">
+              <div id="mission-progress-bar" class="h-2 rounded-full bg-[#00c853] transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
         </div>
-        <div class="border-t border-osa-border pt-3">
-          <p class="text-osa-text text-sm font-semibold mb-1">💼 Work Blocks</p>
-          <ul class="text-osa-muted text-xs space-y-1 pl-2">
-            <li>— 90-minute focus blocks. Phone away.</li>
-            <li>— No social media until work is done.</li>
-            <li>— One hard task before anything else.</li>
-          </ul>
-        </div>
-        <div class="border-t border-osa-border pt-3">
-          <p class="text-osa-text text-sm font-semibold mb-1">🌙 Night Shutdown</p>
-          <ul class="text-osa-muted text-xs space-y-1 pl-2">
-            <li>— Review the day. Did you hold discipline?</li>
-            <li>— No screens after 10pm.</li>
-            <li>— Sleep before midnight.</li>
-          </ul>
-        </div>
-      </div>
-    </div>
 
-    <div class="bg-osa-card border border-osa-border rounded-2xl p-4">
-      <p class="text-osa-accent text-xs font-bold uppercase tracking-widest mb-3">Urge Protocol</p>
-      <p class="text-osa-muted text-xs mb-3">When you feel an urge, do this in order:</p>
-      <ol class="space-y-2">
-        <li class="flex gap-3 text-sm"><span class="text-osa-accent font-bold">1</span><span class="text-osa-text">Stand up immediately. Move your body.</span></li>
-        <li class="flex gap-3 text-sm"><span class="text-osa-accent font-bold">2</span><span class="text-osa-text">Walk to a different room or go outside.</span></li>
-        <li class="flex gap-3 text-sm"><span class="text-osa-accent font-bold">3</span><span class="text-osa-text">Cold water — face, wrists, neck.</span></li>
-        <li class="flex gap-3 text-sm"><span class="text-osa-accent font-bold">4</span><span class="text-osa-text">Open this app. Hit "I Feel an Urge".</span></li>
-        <li class="flex gap-3 text-sm"><span class="text-osa-accent font-bold">5</span><span class="text-osa-text">Wait the 10 minutes. It will pass.</span></li>
-      </ol>
-    </div>
+        <div id="mission-card-morning" class="mission-card">
+          <div class="mission-card-copy">
+            <p class="mission-card-kicker">Morning Routine 🌅</p>
+            <h3 class="mission-card-title">Start clean before the world enters.</h3>
+            <div class="mission-checklist">
+              <div class="mission-check-item">
+                <span>No phone first 10 minutes</span>
+                <button type="button" id="mission-item-morning-phone" onclick="toggleMissionItem('morning-phone')" class="mission-item-button">Done</button>
+              </div>
+              <div class="mission-check-item">
+                <span>Cold water on face</span>
+                <button type="button" id="mission-item-morning-water" onclick="toggleMissionItem('morning-water')" class="mission-item-button">Done</button>
+              </div>
+              <div class="mission-check-item">
+                <span>5 min silence + one intention</span>
+                <button type="button" id="mission-item-morning-silence" onclick="toggleMissionItem('morning-silence')" class="mission-item-button">Done</button>
+              </div>
+            </div>
+          </div>
+          <div class="mission-card-action mission-card-action-tight">
+            <span id="mission-status-morning" class="mission-status">Pending</span>
+            <button id="mission-toggle-morning" type="button" onclick="toggleMission('morning')" class="mission-action-button">Complete morning</button>
+          </div>
+        </div>
 
-    <div class="bg-osa-card border border-osa-border rounded-2xl p-4">
-      <p class="text-osa-accent text-xs font-bold uppercase tracking-widest mb-3">Mental Reset</p>
-      <div class="space-y-3">
-        <div>
-          <p class="text-osa-text text-sm font-semibold mb-1">4-7-8 Breathing</p>
-          <p class="text-osa-muted text-xs">Inhale 4s. Hold 7s. Exhale 8s. Repeat 3 times.</p>
+        <div id="mission-card-work" class="mission-card">
+          <div class="mission-card-copy">
+            <p class="mission-card-kicker">Focus Blocks 💼</p>
+            <h3 class="mission-card-title">Aim for 2 × 90-min deep work sessions.</h3>
+            <p class="mission-card-text">Protect your attention before scrolling steals it.</p>
+            <div class="focus-block-card">
+              <p id="focus-block-status" class="text-sm font-semibold text-osa-text">Ready to begin your first block.</p>
+              <p id="focus-block-progress-text" class="mt-1 text-xs uppercase tracking-[0.24em] text-osa-muted">0/2 blocks completed</p>
+            </div>
+          </div>
+          <div class="mission-card-action">
+            <span id="mission-status-work" class="mission-status">Pending</span>
+            <button id="mission-toggle-work" type="button" onclick="startFocusBlock()" class="mission-action-button">Start 90-min Block</button>
+          </div>
         </div>
-        <div class="border-t border-osa-border pt-3">
-          <p class="text-osa-text text-sm font-semibold mb-1">Grounding</p>
-          <p class="text-osa-muted text-xs">Name 5 things you can see. 4 you can touch. 3 you can hear.</p>
-        </div>
-        <div class="border-t border-osa-border pt-3">
-          <p class="text-osa-text text-sm font-semibold mb-1">The Truth</p>
-          <p class="text-osa-muted text-xs italic">"This urge will peak and fade. I don't have to act on it. I am not my urges."</p>
-        </div>
-      </div>
-    </div>
 
-    <div class="bg-osa-card border border-yellow-900/40 rounded-2xl p-4">
-      <p class="text-yellow-400 text-xs font-bold uppercase tracking-widest mb-2">Tokens</p>
-      <p class="text-osa-muted text-xs mb-3">Each AI message costs 1 token.</p>
-      <div class="grid grid-cols-3 gap-2 text-center text-xs mb-3">
-        <div class="bg-black/30 rounded-xl py-2 px-1"><p class="text-yellow-400 font-bold">10</p><p class="text-osa-muted">Free</p></div>
-        <div class="bg-black/30 rounded-xl py-2 px-1"><p class="text-yellow-400 font-bold">50</p><p class="text-osa-muted">₦1,000</p></div>
-        <div class="bg-black/30 rounded-xl py-2 px-1"><p class="text-yellow-400 font-bold">200</p><p class="text-osa-muted">₦3,000</p></div>
-      </div>
-      <button onclick="showToast('Payment coming soon. Stay tuned.')"
-        class="w-full py-2.5 rounded-xl bg-yellow-900/30 border border-yellow-800/40 text-yellow-400 text-xs font-bold tracking-wide hover:bg-yellow-900/50 transition-all">
-        Buy Tokens
+        <div id="mission-card-night" class="mission-card">
+          <div class="mission-card-copy">
+            <p class="mission-card-kicker">Night Shutdown 🌙</p>
+            <h3 class="mission-card-title">Close the day before late-night pressure builds.</h3>
+            <div class="mission-checklist">
+              <div class="mission-check-item">
+                <span>Review the day</span>
+                <button type="button" id="mission-item-night-review" onclick="toggleMissionItem('night-review')" class="mission-item-button">Done</button>
+              </div>
+              <div class="mission-check-item">
+                <span>No screens after 10pm</span>
+                <button type="button" id="mission-item-night-screens" onclick="toggleMissionItem('night-screens')" class="mission-item-button">Done</button>
+              </div>
+              <div class="mission-check-item">
+                <span>Sleep before 12</span>
+                <button type="button" id="mission-item-night-sleep" onclick="toggleMissionItem('night-sleep')" class="mission-item-button">Done</button>
+              </div>
+            </div>
+          </div>
+          <div class="mission-card-action mission-card-action-tight">
+            <span id="mission-status-night" class="mission-status">Pending</span>
+            <button id="mission-toggle-night" type="button" onclick="toggleMission('night')" class="mission-action-button">Complete night</button>
+          </div>
+        </div>
+
+        <button onclick="markDayComplete()" class="w-full rounded-[1.6rem] bg-[#00c853] px-4 py-4 text-base font-bold tracking-[0.06em] text-black transition-all hover:brightness-110">
+          Mark Day Complete
+        </button>
+      </section>
+
+      <section id="tab-content-arena" class="tab-content hidden flex flex-col gap-4">
+        <div class="arena-card shell-card px-5 py-5">
+          <p class="eyebrow mb-2 text-[#ff9b88]">Urge Arena</p>
+          <h2 class="brand-heading text-2xl leading-tight text-osa-text">Urge Detected. You’ve got this.</h2>
+          <p class="mt-2 text-sm leading-relaxed text-osa-muted">
+            When you feel the urge, move fast. Osa and the protocol will carry the next few minutes with you.
+          </p>
+          <div class="mt-5 grid gap-3 sm:grid-cols-2">
+            <button onclick="startBattleMode()" class="primary-danger-button">
+              I Feel an Urge
+            </button>
+            <button onclick="triggerEmergency()" class="secondary-cta danger-outline">
+              I’m about to relapse — Emergency
+            </button>
+          </div>
+        </div>
+
+        <div class="grid gap-3">
+          <button type="button" class="protocol-card" onclick="toggleProtocolStep(this)">
+            <span class="protocol-step">01</span>
+            <div class="flex-1 text-left">
+              <p class="protocol-title">Stand up immediately. Move your body.</p>
+              <p class="protocol-text">Break the posture that keeps the urge comfortable.</p>
+            </div>
+            <span class="protocol-check">✓</span>
+          </button>
+          <button type="button" class="protocol-card" onclick="toggleProtocolStep(this)">
+            <span class="protocol-step">02</span>
+            <div class="flex-1 text-left">
+              <p class="protocol-title">Walk to another room or step outside.</p>
+              <p class="protocol-text">Change room, light, temperature, and body position immediately.</p>
+            </div>
+            <span class="protocol-check">✓</span>
+          </button>
+          <button type="button" class="protocol-card" onclick="toggleProtocolStep(this)">
+            <span class="protocol-step">03</span>
+            <div class="flex-1 text-left">
+              <p class="protocol-title">Splash cold water on face, wrists, neck.</p>
+              <p class="protocol-text">Shock the body out of the loop and create a clean reset.</p>
+            </div>
+            <span class="protocol-check">✓</span>
+          </button>
+          <button type="button" class="protocol-card" onclick="toggleProtocolStep(this)">
+            <span class="protocol-step">04</span>
+            <div class="flex-1 text-left">
+              <p class="protocol-title">Breathe with me. 4 in. 7 hold. 8 out.</p>
+              <p class="protocol-text">The feeling climbs, crests, and fades. Your job is to stay standing.</p>
+            </div>
+            <span class="protocol-check">✓</span>
+          </button>
+          <button type="button" class="protocol-card" onclick="toggleProtocolStep(this)">
+            <span class="protocol-step">05</span>
+            <div class="flex-1 text-left">
+              <p class="protocol-title">Remember: This feeling will pass.</p>
+              <p class="protocol-text">Discipline is choosing what you want most over what you want now.</p>
+            </div>
+            <span class="protocol-check">✓</span>
+          </button>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Pressure Window</p>
+              <p class="text-lg font-semibold text-osa-text">Keep your exit visible before the urge arrives.</p>
+            </div>
+            <div class="rounded-full border border-red-400/20 bg-red-400/10 px-3 py-1 text-xs font-semibold text-[#ffab97]">
+              90 sec to 10 min
+            </div>
+          </div>
+          <p class="mt-3 text-sm leading-relaxed text-osa-muted">
+            Use this screen as your calm command center. No shame. Just action and recovery.
+          </p>
+        </div>
+      </section>
+
+      <section id="tab-content-chat" class="tab-content hidden flex flex-col gap-4">
+        <div class="shell-card px-5 py-5">
+          <div class="flex items-start justify-between gap-4">
+            <div class="flex items-center gap-3">
+              <div class="osa-avatar">O</div>
+              <div>
+                <p class="eyebrow mb-1">Talking with Osa</p>
+                <p class="text-lg font-semibold text-osa-text">Your calm older brother on standby.</p>
+              </div>
+            </div>
+            <div class="rounded-full border border-osa-accent/20 bg-osa-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f7cf62]">
+              🪙 Tokens left: <span id="chat-token-balance">50</span>
+            </div>
+          </div>
+
+          <p class="mt-3 text-sm leading-relaxed text-osa-muted">
+            Short, direct, grounded replies. Use it when you are tempted, tired, drifting, or simply need a reset.
+          </p>
+
+          <div class="mt-4 flex flex-wrap items-center gap-4 rounded-[1.4rem] border border-white/8 bg-black/15 px-4 py-3">
+            <div class="flex items-center gap-3">
+              <label for="voiceToggle" class="text-xs uppercase tracking-[0.24em] text-osa-muted">Voice</label>
+              <div class="relative">
+                <input type="checkbox" id="voiceToggle" class="sr-only peer" />
+                <div class="h-6 w-11 cursor-pointer rounded-full bg-osa-border transition-colors duration-200 peer-checked:bg-osa-accent" onclick="document.getElementById('voiceToggle').click()"></div>
+                <div class="pointer-events-none absolute left-0.5 top-0.5 h-5 w-5 rounded-full bg-white transition-transform duration-200 peer-checked:translate-x-5"></div>
+              </div>
+            </div>
+            <div class="flex items-center gap-3">
+              <label for="voiceVolume" class="text-xs uppercase tracking-[0.24em] text-osa-muted">Volume</label>
+              <input id="voiceVolume" type="range" min="0" max="1" step="0.05" value="0.85" class="w-24 accent-[#d4a017]" />
+              <span id="voiceVolumeValue" class="text-xs tabular-nums text-osa-muted">85%</span>
+            </div>
+          </div>
+
+          <div class="mt-4 flex flex-wrap gap-2">
+            <button type="button" onclick="useQuickPrompt('Urge is very strong right now')" class="quick-prompt-chip">Urge is very strong right now</button>
+            <button type="button" onclick="useQuickPrompt('Help me with my morning routine')" class="quick-prompt-chip">Help me with my morning routine</button>
+            <button type="button" onclick="useQuickPrompt('Why do I keep slipping at night?')" class="quick-prompt-chip">Why do I keep slipping at night?</button>
+          </div>
+        </div>
+
+        <div class="chat-shell shell-card flex-1 px-4 py-4">
+          <div id="chat-messages" class="chat-log flex flex-col gap-3 pr-1">
+            <div class="flex justify-start">
+              <div class="bg-osa-bot border border-osa-border text-osa-text rounded-2xl rounded-tl-sm px-4 py-3 max-w-xs text-sm leading-relaxed">
+                <span class="block text-osa-accent text-xs font-semibold mb-1 tracking-wide uppercase">Osa</span>
+                I dey here, Prince. Wetin dey happen? Talk to me.
+              </div>
+            </div>
+          </div>
+          <div class="mt-4 flex gap-2">
+            <input id="chat-input" type="text" placeholder="Type your message..."
+              class="flex-1 rounded-[1.4rem] border border-osa-border bg-black/20 px-4 py-3 text-sm text-osa-text placeholder-osa-muted focus:outline-none focus:border-osa-accent"
+              onkeydown="if(event.key==='Enter') sendMessage()" />
+            <button id="chatSendBtn" onclick="sendMessage()" class="chat-send-button">
+              Send
+            </button>
+          </div>
+          <p class="mt-3 text-xs leading-relaxed text-osa-muted">
+            Each Osa reply costs 1 token. Choose wisely.
+          </p>
+        </div>
+      </section>
+
+      <section id="tab-content-me" class="tab-content hidden flex flex-col gap-4">
+        <div class="shell-card px-5 py-5">
+          <div class="flex items-start justify-between gap-4">
+            <div>
+              <p class="eyebrow mb-2">Me</p>
+              <h2 id="me-user-name" class="brand-heading text-2xl leading-tight text-osa-text">Prince</h2>
+              <p id="me-level-label" class="mt-2 text-sm font-semibold leading-relaxed text-osa-accent">Sand Guardian Level 1</p>
+            </div>
+            <div id="premium-badge" class="hidden rounded-full border border-osa-accent/30 bg-osa-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f7cf62]">
+              Full Control
+            </div>
+          </div>
+          <div class="mt-4">
+            <div class="mb-2 flex items-center justify-between text-xs uppercase tracking-[0.24em] text-osa-muted">
+              <span>Progress to next level</span>
+              <span id="me-level-progress-text">0%</span>
+            </div>
+            <div class="h-2 overflow-hidden rounded-full bg-white/6">
+              <div id="me-level-progress-bar" class="h-2 rounded-full bg-osa-accent transition-all duration-500" style="width: 0%"></div>
+            </div>
+          </div>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <p class="eyebrow mb-3">Streaks & Stats</p>
+          <div class="grid grid-cols-3 gap-3 text-center">
+            <div class="rounded-[1.4rem] border border-white/8 bg-black/15 p-3">
+              <p id="me-current-streak" class="text-2xl font-bold text-osa-accent">0</p>
+              <p class="mt-1 text-xs text-osa-muted">Current Streak</p>
+            </div>
+            <div class="rounded-[1.4rem] border border-white/8 bg-black/15 p-3">
+              <p id="me-longest-streak" class="text-2xl font-bold text-osa-text">0</p>
+              <p class="mt-1 text-xs text-osa-muted">Longest</p>
+            </div>
+            <div class="rounded-[1.4rem] border border-white/8 bg-black/15 p-3">
+              <p id="me-total-resisted" class="text-2xl font-bold text-[#00c853]">0</p>
+              <p class="mt-1 text-xs text-osa-muted">Urges Resisted</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="insights-section" class="shell-card px-5 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Osa’s Analysis</p>
+              <p class="text-lg font-semibold text-osa-text">Your current map</p>
+            </div>
+            <button onclick="generateAIInsights()" id="ai-insights-btn" class="insight-button">
+              Ask Osa
+            </button>
+          </div>
+          <div id="insights-content" class="mt-4 space-y-2">
+            <p class="text-sm text-osa-muted">Log a few urges to see your patterns.</p>
+          </div>
+          <div id="ai-insight-box" class="hidden mt-4 border-t border-white/8 pt-4">
+            <p class="text-[11px] uppercase tracking-[0.28em] text-osa-muted">Osa's analysis</p>
+            <p id="ai-insight-text" class="mt-2 text-sm leading-relaxed italic text-osa-text"></p>
+          </div>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <div class="flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Progress</p>
+              <p class="text-lg font-semibold text-osa-text">Patterns Heatmap</p>
+            </div>
+            <span class="rounded-full border border-white/8 bg-black/15 px-3 py-1 text-xs text-osa-muted">Last 21 days</span>
+          </div>
+          <div id="progress-heatmap" class="progress-heatmap mt-4"></div>
+          <p id="progress-heatmap-caption" class="mt-3 text-sm leading-relaxed text-osa-muted">
+            Your strongest days appear in green. Pressure days stay visible so you can learn, not hide.
+          </p>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <div class="mb-3 flex items-center justify-between gap-3">
+            <div>
+              <p class="eyebrow mb-2">Honest Journal</p>
+              <p class="text-lg font-semibold text-osa-text">Every entry tells the truth.</p>
+            </div>
+            <button onclick="clearHistory()" class="text-xs font-semibold uppercase tracking-[0.24em] text-osa-muted transition-colors hover:text-[#ffb19f]">
+              Clear
+            </button>
+          </div>
+          <div id="history-list" class="flex flex-col gap-3">
+            <p id="history-empty" class="py-6 text-center text-sm leading-relaxed text-osa-muted">
+              No entries yet.<br />Your journal starts with your first urge.
+            </p>
+          </div>
+        </div>
+
+        <div class="shell-card px-5 py-5">
+          <p class="eyebrow mb-2">Tools</p>
+          <p class="text-lg font-semibold text-osa-text">Keep the fire burning.</p>
+          <div class="mt-4 grid gap-3">
+            <button id="upgrade-btn" onclick="showUpgradeModal()" class="w-full rounded-[1.5rem] bg-osa-accent px-4 py-4 text-sm font-bold tracking-[0.12em] text-black transition-all hover:bg-osa-accentDark">
+              Buy Tokens
+            </button>
+            <button onclick="exportMyProgress()" class="w-full rounded-[1.5rem] border border-osa-border bg-black/15 px-4 py-4 text-sm font-bold tracking-[0.08em] text-osa-text transition-all hover:border-osa-accent/40">
+              Share My Progress
+            </button>
+            <button onclick="logout()" class="w-full rounded-[1.5rem] border border-white/10 bg-black/15 px-4 py-4 text-sm font-bold tracking-[0.08em] text-osa-muted transition-all hover:border-red-400/30 hover:text-[#ffb19f]">
+              Log Out
+            </button>
+          </div>
+        </div>
+      </section>
+    </main>
+
+    <nav class="bottom-tab-bar">
+      <button onclick="showTab('dashboard')" id="tab-dashboard" class="tab-btn">
+        <span class="tab-btn-icon">⌂</span>
+        <span class="tab-btn-label">Home</span>
       </button>
-    </div>
-
+      <button onclick="showTab('mission')" id="tab-mission" class="tab-btn">
+        <span class="tab-btn-icon">☑</span>
+        <span class="tab-btn-label">Today</span>
+      </button>
+      <button onclick="showTab('arena')" id="tab-arena" class="tab-btn">
+        <span class="tab-btn-icon">🛡</span>
+        <span class="tab-btn-label">Urge</span>
+      </button>
+      <button onclick="showTab('chat')" id="tab-chat" class="tab-btn">
+        <span class="tab-btn-icon">◔</span>
+        <span class="tab-btn-label">Osa</span>
+      </button>
+      <button onclick="showTab('me')" id="tab-me" class="tab-btn">
+        <span class="tab-btn-icon">◡</span>
+        <span class="tab-btn-label">Me</span>
+      </button>
+    </nav>
   </div>
 
-  <!-- ═══ OVERLAYS ════════════════════════════════════════════════════ -->
-
-  <!-- 1. Battle Mode — full-screen intervention -->
   <div id="urge-mode" class="hidden intervention-overlay fixed inset-0 z-50 overflow-y-auto px-6 py-8">
     <div class="mx-auto flex min-h-full w-full max-w-xl flex-col items-center justify-center text-center">
       <div class="intervention-panel w-full rounded-[2rem] border border-red-900/60 bg-black/95 px-6 py-8 shadow-2xl shadow-red-950/30">
-        <p class="mb-3 text-[11px] font-bold uppercase tracking-[0.35em] text-red-500">Battle Mode</p>
-        <h2 id="intervention-title" class="mb-3 text-3xl font-bold leading-tight text-white sm:text-4xl">⚠️ You are under pressure</h2>
+        <div class="mb-5 flex items-center justify-between gap-3">
+          <p class="text-[11px] font-bold uppercase tracking-[0.35em] text-red-500">Battle Mode</p>
+          <button onclick="triggerEmergency()" class="rounded-full border border-red-800/50 bg-red-950/35 px-3 py-2 text-[11px] font-semibold uppercase tracking-[0.18em] text-[#ffb19f]">
+            I’m about to relapse — Emergency
+          </button>
+        </div>
+        <h2 id="intervention-title" class="mb-3 text-3xl font-bold leading-tight text-white sm:text-4xl">Urge Detected. You’ve got this.</h2>
         <p id="intervention-status" class="mb-5 text-xs uppercase tracking-[0.28em] text-red-400 intervention-status-loading">Connecting to Osa...</p>
 
         <p id="urge-message" class="mx-auto mb-8 max-w-lg text-lg font-medium leading-relaxed text-white sm:text-xl" aria-live="polite">
@@ -321,110 +602,166 @@
         </p>
 
         <div class="mb-2 text-6xl font-bold tabular-nums text-red-400 sm:text-7xl" id="urge-timer">10:00</div>
-        <p class="mb-8 text-xs uppercase tracking-[0.28em] text-red-900">Time remaining</p>
+        <p class="mb-8 text-xs uppercase tracking-[0.28em] text-red-900">Time remaining — urge peaks and fades</p>
 
-        <div class="mb-8 rounded-[1.5rem] border border-red-900/60 bg-red-950/20 p-5 text-left">
-          <p class="mb-4 text-xs font-semibold uppercase tracking-[0.28em] text-red-400">Action steps</p>
-          <ul class="list-disc space-y-3 pl-5 text-sm leading-relaxed text-white marker:text-red-400 sm:text-base">
-            <li>Stand up immediately</li>
-            <li>Leave your current position</li>
-            <li>Drink water</li>
-            <li>Breathe slowly</li>
-          </ul>
+        <div class="mb-8 space-y-3 text-left">
+          <button type="button" class="battle-step-card" onclick="markBattleStep(this)"><span class="battle-step-number">1</span><span class="flex-1">Stand up immediately. Move your body.</span><span class="step-check">✓</span></button>
+          <button type="button" class="battle-step-card" onclick="markBattleStep(this)"><span class="battle-step-number">2</span><span class="flex-1">Walk to another room or step outside.</span><span class="step-check">✓</span></button>
+          <button type="button" class="battle-step-card" onclick="markBattleStep(this)"><span class="battle-step-number">3</span><span class="flex-1">Splash cold water on face, wrists, neck.</span><span class="step-check">✓</span></button>
+          <button type="button" class="battle-step-card" onclick="markBattleStep(this)"><span class="battle-step-number">4</span><span class="flex-1">Breathe with me. 4 in. 7 hold. 8 out.</span><span class="step-check">✓</span></button>
+          <button type="button" class="battle-step-card" onclick="markBattleStep(this)"><span class="battle-step-number">5</span><span class="flex-1">Remember: This feeling will pass.</span><span class="step-check">✓</span></button>
         </div>
 
         <button id="resistBtn" onclick="resistIntervention()"
-          class="w-full rounded-2xl bg-osa-accent px-6 py-4 text-base font-bold tracking-wide text-black transition-all active:scale-95 hover:bg-osa-accentDark">
+          class="w-full rounded-2xl bg-[#00c853] px-6 py-4 text-base font-bold tracking-wide text-black transition-all active:scale-95 hover:brightness-110">
           I stayed in control
         </button>
         <button id="dismissInterventionBtn" onclick="dismissIntervention()"
-          class="mt-3 text-xs uppercase tracking-[0.28em] text-red-800 transition-colors hover:text-red-500">
-          Exit intervention
+          class="mt-3 text-xs uppercase tracking-[0.28em] text-red-300 transition-colors hover:text-[#ffb19f]">
+          I Slipped
         </button>
       </div>
     </div>
   </div>
 
-  <!-- 4. Emergency Overlay -->
-  <div id="emergency-mode" class="hidden fixed inset-0 bg-black/98 z-50 flex flex-col items-center justify-center px-6 text-center">
-    <p class="text-red-500 text-xs uppercase tracking-widest mb-4">Emergency Mode</p>
-    <p id="emergency-message" class="text-white text-2xl font-bold max-w-xs leading-tight mb-6">Stop. Right now. Do not move.</p>
-    <ol class="text-left space-y-3 mb-10 max-w-xs">
-      <li class="flex gap-3 text-osa-text text-sm"><span class="text-red-400 font-bold">1</span> Stand up. Walk to another room.</li>
-      <li class="flex gap-3 text-osa-text text-sm"><span class="text-red-400 font-bold">2</span> Cold water. Face and wrists now.</li>
-      <li class="flex gap-3 text-osa-text text-sm"><span class="text-red-400 font-bold">3</span> Breathe. 4 in. 7 hold. 8 out.</li>
-      <li class="flex gap-3 text-osa-text text-sm"><span class="text-red-400 font-bold">4</span> This feeling peaks in 90 seconds and fades.</li>
+  <div id="emergency-mode" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/98 px-6 text-center">
+    <p class="mb-4 text-xs uppercase tracking-widest text-red-500">Emergency Mode</p>
+    <p id="emergency-message" class="mb-6 max-w-xs text-2xl font-bold leading-tight text-white">Stop. Right now. Do not move.</p>
+    <ol class="mb-10 max-w-xs space-y-3 text-left">
+      <li class="flex gap-3 text-sm text-osa-text"><span class="font-bold text-red-400">1</span> Stand up. Walk to another room.</li>
+      <li class="flex gap-3 text-sm text-osa-text"><span class="font-bold text-red-400">2</span> Cold water. Face and wrists now.</li>
+      <li class="flex gap-3 text-sm text-osa-text"><span class="font-bold text-red-400">3</span> Breathe. 4 in. 7 hold. 8 out.</li>
+      <li class="flex gap-3 text-sm text-osa-text"><span class="font-bold text-red-400">4</span> This feeling peaks and fades. Stay up.</li>
     </ol>
-    <button onclick="closeEmergency()"
-      class="px-8 py-3 rounded-full bg-osa-accent text-black text-sm font-bold tracking-wide hover:bg-osa-accentDark transition-all">
+    <button onclick="closeEmergency()" class="rounded-full bg-osa-accent px-8 py-3 text-sm font-bold tracking-wide text-black transition-all hover:bg-osa-accentDark">
       I'm back in control
     </button>
   </div>
 
-  <!-- ─── DAY REWARD POPUP ─────────────────────────────────────────── -->
-  <div id="reward-popup" class="hidden fixed inset-0 bg-black/95 z-50 flex flex-col items-center justify-center px-6 text-center">
-    <div class="w-16 h-16 rounded-full bg-green-900/40 border border-green-700/50 flex items-center justify-center text-3xl mb-6">
-      &#10003;
-    </div>
-    <p class="text-green-400 text-xs uppercase tracking-widest mb-3">Day Complete</p>
-    <p id="reward-message" class="text-white text-2xl font-bold max-w-xs leading-tight mb-3">
-      You did not break.
+  <div id="reward-popup" class="hidden fixed inset-0 z-50 flex flex-col items-center justify-center bg-black/95 px-6 text-center">
+    <div class="reward-sunrise mb-6"></div>
+    <p class="mb-3 text-xs uppercase tracking-widest text-green-400">Day complete</p>
+    <p id="reward-message" class="mb-3 max-w-sm text-3xl font-bold leading-tight text-white">
+      You Did Not Break Today 🔥
     </p>
-    <p class="text-osa-muted text-sm mb-2">Urges resisted today: <span id="reward-resisted" class="text-green-400 font-bold">0</span></p>
-    <p class="text-yellow-400 text-sm font-semibold mb-8">+5 tokens earned</p>
-    <button onclick="closeReward()"
-      class="px-10 py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-             active:scale-95 transition-all hover:bg-osa-accentDark">
-      Start Tomorrow
-    </button>
-  </div>
-
-  <!-- ─── ONBOARDING ───────────────────────────────────────────────── -->
-  <div id="onboarding" class="hidden fixed inset-0 bg-black z-[100] flex flex-col items-center justify-between px-6 py-12">
-    <!-- Progress Dots -->
-    <div class="flex gap-2 mt-2">
-      <div class="onboard-dot w-2 h-2 rounded-full bg-osa-accent transition-all"></div>
-      <div class="onboard-dot w-2 h-2 rounded-full bg-osa-border transition-all"></div>
-      <div class="onboard-dot w-2 h-2 rounded-full bg-osa-border transition-all"></div>
-      <div class="onboard-dot w-2 h-2 rounded-full bg-osa-border transition-all"></div>
-    </div>
-
-    <!-- Content -->
-    <div class="flex flex-col items-center text-center flex-1 justify-center gap-6 max-w-xs">
-      <h1 id="onboard-title" class="text-3xl font-bold text-osa-accent tracking-wide"></h1>
-      <p id="onboard-text" class="text-osa-muted text-base leading-relaxed whitespace-pre-line"></p>
-
-      <!-- Setup screen (step 4 only) -->
-      <div id="onboard-setup" class="hidden w-full text-left space-y-4">
-        <p class="text-osa-muted text-sm text-center">What's your biggest trigger?</p>
-        <select id="onboard-trigger"
-          class="w-full bg-osa-card border border-osa-border rounded-2xl px-4 py-3 text-osa-text text-sm focus:outline-none focus:border-osa-accent">
-          <option>Boredom</option>
-          <option>Loneliness</option>
-          <option>Stress</option>
-          <option>Night habit</option>
-          <option>Social Media</option>
-          <option>Unknown</option>
-        </select>
-        <p class="text-osa-muted text-xs text-center">Osa will use this to personalise your experience.</p>
+    <p class="mb-6 max-w-sm text-sm leading-relaxed text-osa-muted">Small daily wins become unbreakable discipline.</p>
+    <div class="mb-8 grid w-full max-w-sm grid-cols-3 gap-3">
+      <div class="reward-stat-card">
+        <p id="reward-resisted" class="reward-stat-value">0</p>
+        <p class="reward-stat-label">Urges resisted</p>
+      </div>
+      <div class="reward-stat-card">
+        <p id="reward-routines" class="reward-stat-value">0/3</p>
+        <p class="reward-stat-label">Routines completed</p>
+      </div>
+      <div class="reward-stat-card">
+        <p id="reward-control-level" class="reward-stat-value">0%</p>
+        <p class="reward-stat-label">Control level</p>
       </div>
     </div>
-
-    <!-- Actions -->
-    <div class="w-full space-y-3 max-w-xs">
-      <button onclick="nextOnboard()" id="onboard-btn"
-        class="w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-               active:scale-95 transition-all hover:bg-osa-accentDark">
-        Continue
+    <p class="mb-8 text-sm font-semibold text-yellow-400">+5 tokens earned. You held body today!</p>
+    <div class="w-full max-w-sm space-y-3">
+      <button onclick="showRewardShare()" class="w-full rounded-2xl bg-osa-accent px-10 py-4 text-sm font-bold tracking-wide text-black transition-all hover:bg-osa-accentDark">
+        Share My Win
       </button>
-      <button onclick="finishOnboarding()" class="w-full text-osa-muted text-xs tracking-widest uppercase py-2">
-        Skip
+      <button onclick="rewardTalkToOsa()" class="w-full rounded-2xl border border-osa-border bg-black/15 px-10 py-4 text-sm font-bold tracking-wide text-osa-text transition-all hover:border-osa-accent/40">
+        Talk to Osa
+      </button>
+      <button onclick="closeReward()" class="w-full rounded-2xl border border-white/10 bg-black/15 px-10 py-4 text-sm font-bold tracking-wide text-osa-muted transition-all hover:text-osa-text">
+        Back to Home
       </button>
     </div>
   </div>
 
-  <!-- ─── PROFILE SETUP ──────────────────────────────────────────── -->
-  <div id="profile-screen" class="hidden fixed inset-0 z-[190] overflow-y-auto" style="background:#0a0a0a;">
+  <div id="onboarding" class="hidden fixed inset-0 z-[100] overflow-y-auto bg-[#091113]">
+    <div class="onboard-background"></div>
+    <div class="relative flex min-h-full flex-col justify-between px-6 py-10">
+      <div class="flex items-center justify-between gap-4">
+        <div class="flex gap-2">
+          <div class="onboard-dot h-2 w-8 rounded-full bg-osa-accent transition-all"></div>
+          <div class="onboard-dot h-2 w-2 rounded-full bg-osa-border transition-all"></div>
+          <div class="onboard-dot h-2 w-2 rounded-full bg-osa-border transition-all"></div>
+          <div class="onboard-dot h-2 w-2 rounded-full bg-osa-border transition-all"></div>
+        </div>
+        <div class="rounded-full border border-osa-accent/20 bg-osa-accent/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.24em] text-[#f7cf62]">
+          50 free tokens
+        </div>
+      </div>
+
+      <div class="mx-auto flex w-full max-w-sm flex-1 flex-col justify-center gap-6 py-10">
+        <div class="onboard-stage">
+          <div class="onboard-visual">
+            <div class="onboard-phone">
+              <div class="onboard-phone-bar"></div>
+              <div class="onboard-phone-card alert">
+                <span class="onboard-phone-tag">Urge hits</span>
+                <p>Pressure rises at night.</p>
+              </div>
+              <div class="onboard-phone-card osa">
+                <span class="onboard-phone-tag">Osa replies</span>
+                <p>Stand up first. No sit there.</p>
+              </div>
+              <div class="onboard-phone-card win">
+                <span class="onboard-phone-tag">You win</span>
+                <p>Control returns. Tokens added.</p>
+              </div>
+            </div>
+          </div>
+
+          <div class="text-center">
+            <p id="onboard-kicker" class="eyebrow mb-3 text-[#f7cf62]">Welcome</p>
+            <h1 id="onboard-title" class="brand-heading text-3xl leading-tight text-osa-text"></h1>
+            <p id="onboard-text" class="mt-4 text-base leading-relaxed text-osa-muted whitespace-pre-line"></p>
+
+            <div id="onboard-setup" class="hidden mt-6 text-left">
+              <p class="mb-3 text-center text-sm text-osa-muted">What’s your biggest trigger?</p>
+              <div class="grid grid-cols-2 gap-2">
+                <button type="button" class="onboard-trigger-card" data-trigger-option="Porn / Sexual urges" onclick="setOnboardTrigger('Porn / Sexual urges')">Porn / Sexual urges</button>
+                <button type="button" class="onboard-trigger-card" data-trigger-option="Social media / Phone" onclick="setOnboardTrigger('Social media / Phone')">Social media / Phone</button>
+                <button type="button" class="onboard-trigger-card" data-trigger-option="Laziness / Procrastination" onclick="setOnboardTrigger('Laziness / Procrastination')">Laziness / Procrastination</button>
+                <button type="button" class="onboard-trigger-card" data-trigger-option="Anger / Emotions" onclick="setOnboardTrigger('Anger / Emotions')">Anger / Emotions</button>
+                <button type="button" class="onboard-trigger-card col-span-2" data-trigger-option="Others" onclick="setOnboardTrigger('Others')">Others</button>
+              </div>
+              <input id="onboard-trigger-other" type="text" placeholder="Tell Osa your main trigger"
+                class="mt-3 hidden w-full rounded-2xl border border-osa-border bg-black/20 px-4 py-3 text-sm text-osa-text placeholder-osa-muted focus:outline-none focus:border-osa-accent" />
+              <select id="onboard-trigger" class="sr-only">
+                <option value="">Select one</option>
+                <option value="Porn / Sexual urges">Porn / Sexual urges</option>
+                <option value="Social media / Phone">Social media / Phone</option>
+                <option value="Laziness / Procrastination">Laziness / Procrastination</option>
+                <option value="Anger / Emotions">Anger / Emotions</option>
+                <option value="Others">Others</option>
+              </select>
+            </div>
+
+            <div id="onboard-profile" class="hidden mt-6 text-left">
+              <p class="mb-3 text-center text-sm text-osa-muted">Just a bit more… This stays private. Osa uses it to personalize.</p>
+              <label class="mb-2 block text-xs uppercase tracking-[0.24em] text-osa-muted">Date of Birth</label>
+              <input id="onboard-dob" type="date"
+                class="w-full rounded-2xl border border-osa-border bg-black/20 px-4 py-3 text-sm text-osa-text placeholder-osa-muted focus:outline-none focus:border-osa-accent" />
+              <p id="onboard-age" class="mt-3 text-center text-sm font-semibold text-osa-accent">You’re -- years old</p>
+            </div>
+
+            <p id="onboard-helper" class="mt-4 text-sm leading-relaxed text-osa-muted"></p>
+            <button id="onboard-login-link" onclick="showAuthFromOnboarding()" class="mt-3 text-xs font-semibold uppercase tracking-[0.24em] text-osa-muted underline-offset-4 hover:text-osa-text hover:underline">
+              Already have an account? Log in
+            </button>
+            <button id="onboard-skip" onclick="finishOnboarding()" class="mt-3 hidden text-xs font-semibold uppercase tracking-[0.24em] text-osa-muted underline-offset-4 hover:text-osa-text hover:underline">
+              Skip
+            </button>
+          </div>
+        </div>
+      </div>
+
+      <div class="mx-auto w-full max-w-sm space-y-3">
+        <button onclick="nextOnboard()" id="onboard-btn" class="w-full rounded-[1.6rem] bg-osa-accent px-4 py-4 text-sm font-bold tracking-[0.14em] text-black transition-all hover:bg-osa-accentDark">
+          Continue
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <div id="profile-screen" class="hidden fixed inset-0 z-[190] overflow-y-auto" style="background:#0a0f11;">
     <div class="min-h-full flex flex-col items-center justify-center px-6 py-12">
       <div class="w-full max-w-xs">
 
@@ -433,35 +770,25 @@
           <p class="text-osa-muted text-xs leading-relaxed">Private to you. Osa uses this to personalise your journey.</p>
         </div>
 
-        <!-- Error -->
         <div id="profile-error" class="hidden bg-red-950/40 border border-red-800/50 rounded-xl px-4 py-2.5 mb-4">
           <p id="profile-error-text" class="text-red-400 text-xs text-center"></p>
         </div>
 
         <div class="space-y-3">
-
-          <!-- Full Name -->
           <input id="profile-fullname" type="text" placeholder="Full name"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-          <!-- Code Name -->
           <input id="profile-codename" type="text" placeholder="Code name — your alias in the app"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-          <!-- Mobile -->
           <input id="profile-mobile" type="tel" placeholder="Mobile number"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-          <!-- DOB + Auto Age -->
           <div>
             <p class="text-osa-muted text-xs uppercase tracking-widest mb-2 ml-1">Date of Birth</p>
             <div class="flex gap-2">
               <select id="profile-dob-month"
-                class="auth-input flex-1 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
-                       focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                class="auth-input flex-1 bg-black/20 border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
                 <option value="" disabled selected>Month</option>
                 <option value="1">January</option><option value="2">February</option>
                 <option value="3">March</option><option value="4">April</option>
@@ -471,8 +798,7 @@
                 <option value="11">November</option><option value="12">December</option>
               </select>
               <select id="profile-dob-day"
-                class="auth-input w-20 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
-                       focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                class="auth-input w-20 bg-black/20 border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
                 <option value="" disabled selected>Day</option>
               </select>
               <div class="bg-osa-card border border-osa-border rounded-2xl px-3 py-3.5 text-center min-w-[56px]">
@@ -482,16 +808,12 @@
             </div>
           </div>
 
-          <!-- Birth Year (hidden, used for age calc) -->
           <input id="profile-dob-year" type="number" placeholder="Birth year (e.g. 1998)"
             min="1940" max="2015"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-          <!-- Gender -->
           <select id="profile-gender"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
             <option value="" disabled selected>Gender</option>
             <option value="Male">Male</option>
             <option value="Female">Female</option>
@@ -499,15 +821,11 @@
             <option value="Prefer not to say">Prefer not to say</option>
           </select>
 
-          <!-- Location -->
           <input id="profile-location" type="text" placeholder="Current city / location"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-          <!-- Save -->
           <button id="profile-save-btn"
-            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-                   active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-2">
+            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-2">
             Save & Enter Dashboard
           </button>
 
@@ -516,49 +834,35 @@
     </div>
   </div>
 
-  <!-- ─── AUTH SCREEN ────────────────────────────────────────────── -->
-  <div id="auth-screen" class="fixed inset-0 z-[200] overflow-y-auto" style="background:#0a0a0a;">
-
-    <!-- LOGIN VIEW -->
+  <div id="auth-screen" class="fixed inset-0 z-[200] overflow-y-auto" style="background:#081114;">
     <div id="login-view" class="min-h-screen flex flex-col items-center justify-center px-6 py-12">
       <div class="w-full max-w-xs">
-
-        <!-- Branding -->
         <div class="text-center mb-10">
-          <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
-          <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+          <h1 class="brand-heading text-3xl text-osa-text tracking-tight mb-2">Perfect Sand</h1>
+          <p class="text-osa-muted text-xs uppercase tracking-[0.3em]">by Voice of Osa</p>
         </div>
 
-        <!-- Card -->
-        <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
+        <div class="bg-osa-card/90 border border-osa-border rounded-[2rem] px-6 py-8 backdrop-blur-sm">
           <div class="text-center mb-6">
             <h2 class="text-osa-text text-xl font-bold mb-1">Welcome back</h2>
-            <p class="text-osa-muted text-xs">Stay in control</p>
+            <p class="text-osa-muted text-xs">Your calm discipline system is waiting.</p>
           </div>
 
-          <!-- Feedback -->
           <div id="auth-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
             <p id="auth-error-text" class="text-xs text-center leading-relaxed"></p>
           </div>
 
-          <!-- Email -->
           <input id="email" type="email" placeholder="Email address" autocomplete="email"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-3" />
 
-          <!-- Password -->
           <input id="password" type="password" placeholder="Password" autocomplete="current-password"
-            class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                   placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4" />
+            class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200 mb-4" />
 
-          <!-- Login button -->
           <button id="loginBtn"
-            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-                   active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mb-4">
+            class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mb-4">
             Sign In
           </button>
 
-          <!-- Divider -->
           <div class="flex items-center gap-3 mb-4">
             <div class="flex-1 h-px bg-osa-border"></div>
             <span class="text-osa-muted text-xs">or</span>
@@ -570,56 +874,41 @@
             <button id="showSignupBtn" class="text-osa-accent font-semibold ml-1 hover:underline">Create one →</button>
           </p>
         </div>
-
       </div>
     </div>
 
-    <!-- SIGNUP VIEW -->
     <div id="signup-view" class="hidden min-h-screen flex flex-col items-center justify-start px-6 py-12">
       <div class="w-full max-w-xs">
-
-        <!-- Branding -->
         <div class="text-center mb-8">
-          <h1 class="text-2xl font-bold text-osa-accent tracking-wide mb-1">Perfect Sand</h1>
-          <p class="text-osa-muted text-xs uppercase tracking-widest">by Voice of Osa</p>
+          <h1 class="brand-heading text-3xl text-osa-text tracking-tight mb-2">Perfect Sand</h1>
+          <p class="text-osa-muted text-xs uppercase tracking-[0.3em]">by Voice of Osa</p>
         </div>
 
-        <!-- Card -->
-        <div class="bg-osa-card border border-osa-border rounded-3xl px-6 py-8">
+        <div class="bg-osa-card/90 border border-osa-border rounded-[2rem] px-6 py-8 backdrop-blur-sm">
           <div class="text-center mb-6">
             <h2 class="text-osa-text text-xl font-bold mb-1">Create Account</h2>
-            <p class="text-osa-muted text-xs">Tell us about yourself first</p>
+            <p class="text-osa-muted text-xs">Start with 50 free tokens and a cleaner system.</p>
           </div>
 
-          <!-- Feedback -->
           <div id="su-error" class="hidden rounded-xl px-4 py-2.5 mb-4">
             <p id="su-error-text" class="text-xs text-center leading-relaxed"></p>
           </div>
 
           <div class="space-y-3">
-
-            <!-- Full Name -->
             <input id="su-fullname" type="text" placeholder="Full name"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Code Name -->
             <input id="su-codename" type="text" placeholder="Code name — your alias in the app"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Mobile -->
             <input id="su-mobile" type="tel" placeholder="Mobile number"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- DOB -->
             <div>
               <p class="text-osa-muted text-xs uppercase tracking-widest mb-2 ml-1">Date of Birth</p>
               <div class="flex gap-2">
                 <select id="su-dob-month"
-                  class="auth-input flex-1 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
-                         focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                  class="auth-input flex-1 bg-black/20 border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
                   <option value="" disabled selected>Month</option>
                   <option value="1">January</option><option value="2">February</option>
                   <option value="3">March</option><option value="4">April</option>
@@ -629,8 +918,7 @@
                   <option value="11">November</option><option value="12">December</option>
                 </select>
                 <select id="su-dob-day"
-                  class="auth-input w-20 bg-black border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm
-                         focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+                  class="auth-input w-20 bg-black/20 border border-osa-border rounded-2xl px-3 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
                   <option value="" disabled selected>Day</option>
                 </select>
                 <div class="bg-osa-card border border-osa-border rounded-2xl px-3 py-3.5 text-center min-w-[56px]">
@@ -640,16 +928,12 @@
               </div>
             </div>
 
-            <!-- Birth Year -->
             <input id="su-dob-year" type="number" placeholder="Birth year (e.g. 1998)"
               min="1940" max="2015"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Gender -->
             <select id="su-gender"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm focus:outline-none focus:border-osa-accent transition-colors duration-200 appearance-none">
               <option value="" disabled selected>Gender</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
@@ -657,47 +941,139 @@
               <option value="Prefer not to say">Prefer not to say</option>
             </select>
 
-            <!-- Location -->
             <input id="su-location" type="text" placeholder="Current city / location"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Divider -->
             <div class="flex items-center gap-3 pt-1">
               <div class="flex-1 h-px bg-osa-border"></div>
               <span class="text-osa-muted text-xs">account details</span>
               <div class="flex-1 h-px bg-osa-border"></div>
             </div>
 
-            <!-- Email -->
             <input id="su-email" type="email" placeholder="Email address" autocomplete="email"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Password -->
             <input id="su-password" type="password" placeholder="Password (min 6 characters)" autocomplete="new-password"
-              class="auth-input w-full bg-black border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm
-                     placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
+              class="auth-input w-full bg-black/20 border border-osa-border rounded-2xl px-4 py-3.5 text-osa-text text-sm placeholder-osa-muted focus:outline-none focus:border-osa-accent transition-colors duration-200" />
 
-            <!-- Submit -->
             <button id="su-btn"
-              class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide
-                     active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-1">
+              class="auth-btn w-full py-4 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide active:scale-95 transition-all duration-200 hover:bg-osa-accentDark mt-1">
               Create Account
             </button>
 
-            <!-- Back to login -->
             <p class="text-center text-osa-muted text-xs pt-1">
               Already have an account?
               <button id="showLoginBtn" class="text-osa-accent font-semibold ml-1 hover:underline">Sign in →</button>
             </p>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
 
+  <div id="night-reflection-modal" class="hidden fixed inset-0 z-[300] bg-black/97 flex flex-col items-center justify-center px-6">
+    <div class="w-full max-w-xs text-center">
+      <p class="text-osa-muted text-[11px] font-bold uppercase tracking-[0.35em] mb-3">OSA — Night Check</p>
+      <h2 class="text-white text-2xl font-bold mb-2 leading-tight">How did you move today?</h2>
+      <p class="text-osa-muted text-sm mb-8">Be honest. No one's watching except you.</p>
+
+      <div class="space-y-3">
+        <button onclick="submitNightReflection('controlled')"
+          class="w-full py-4 rounded-2xl bg-osa-card border border-green-800/50 text-green-400 font-bold text-sm tracking-wide active:scale-95 transition-all hover:bg-green-950/30">
+          Stayed in control
+        </button>
+        <button onclick="submitNightReflection('slipped')"
+          class="w-full py-4 rounded-2xl bg-osa-card border border-red-900/50 text-red-400 font-bold text-sm tracking-wide active:scale-95 transition-all hover:bg-red-950/30">
+          I slipped
+        </button>
+      </div>
+
+      <button onclick="closeNightReflection()" class="mt-6 text-osa-muted text-xs tracking-widest uppercase py-2">
+        Skip tonight
+      </button>
+    </div>
+  </div>
+
+  <div id="upgrade-modal" class="hidden fixed inset-0 z-[300] bg-black/97 overflow-y-auto">
+    <div class="min-h-full flex flex-col items-center justify-center px-6 py-12">
+      <div class="w-full max-w-sm">
+        <button onclick="closeUpgradeModal()" class="absolute top-6 right-6 text-osa-muted text-2xl leading-none">✕</button>
+
+        <p class="text-osa-accent text-[11px] font-bold uppercase tracking-[0.35em] text-center mb-3">Pricing</p>
+        <h2 class="text-white text-3xl font-bold text-center leading-tight mb-2">Keep the Fire Burning</h2>
+        <p class="text-osa-muted text-sm text-center mb-3 leading-relaxed">Current Balance</p>
+        <p class="mb-8 text-center text-3xl font-bold text-[#f7cf62]">🪙 <span id="pricing-token-count">50</span> tokens</p>
+
+        <div class="space-y-3 mb-8">
+          <div class="pricing-card">
+            <div>
+              <p class="pricing-card-title">Starter</p>
+              <p class="pricing-card-sub">100 tokens → ₦700</p>
+              <p class="pricing-card-note">Good for 2–3 weeks of Osa support</p>
+            </div>
+            <button onclick="activatePremium()" class="pricing-card-button">Buy Now</button>
+          </div>
+          <div class="pricing-card pricing-card-featured">
+            <div>
+              <p class="pricing-card-title">Monthly Power</p>
+              <p class="pricing-card-sub">Unlimited Osa for 30 days → ₦2,500</p>
+              <p class="pricing-card-note">Best value. No more counting tokens</p>
+            </div>
+            <button onclick="activatePremium()" class="pricing-card-button">Buy Now</button>
+          </div>
+          <div class="pricing-card">
+            <div>
+              <p class="pricing-card-title">Lifetime Discipline</p>
+              <p class="pricing-card-sub">One-time ₦18,000</p>
+              <p class="pricing-card-note">Never pay again. Own your sand forever</p>
+            </div>
+            <button onclick="activatePremium()" class="pricing-card-button">Buy Now</button>
           </div>
         </div>
 
+        <div class="mb-6 flex flex-wrap justify-center gap-2 text-[11px] uppercase tracking-[0.22em] text-osa-muted">
+          <span class="badge-soft">🔒 Secured by Paystack</span>
+          <span class="badge-soft">Flutterwave</span>
+          <span class="badge-soft">OPay</span>
+        </div>
+        <p class="mb-6 text-center text-xs leading-relaxed text-osa-muted">Join 2,847 Nigerians building discipline with Perfect Sand</p>
+
+        <button onclick="closeUpgradeModal()" class="w-full text-osa-muted text-xs tracking-widest uppercase py-2">
+          Not now
+        </button>
       </div>
     </div>
+  </div>
 
+  <div id="share-modal" class="hidden fixed inset-0 z-[300] bg-black/97 flex flex-col items-center justify-center px-6">
+    <div class="w-full max-w-xs text-center">
+      <div class="w-14 h-14 rounded-full bg-osa-accent/10 border border-osa-accent/30 flex items-center justify-center text-2xl mb-5 mx-auto">
+        🔥
+      </div>
+
+      <p class="text-osa-accent text-[11px] font-bold uppercase tracking-[0.35em] mb-2">You're on a</p>
+      <h2 id="share-streak-label" class="text-white text-3xl font-bold mb-2">3-day streak</h2>
+      <p class="text-osa-muted text-sm mb-6 leading-relaxed">Share the win. Let someone else see what discipline can look like.</p>
+
+      <div class="bg-osa-card border border-osa-border rounded-2xl p-4 mb-5 text-left">
+        <p id="share-text-display" class="text-osa-text text-sm leading-relaxed italic"></p>
+      </div>
+
+      <div class="space-y-2 mb-4">
+        <button id="share-native-btn"
+          class="w-full py-3.5 rounded-2xl bg-osa-accent text-black font-bold text-sm tracking-wide active:scale-95 transition-all hover:bg-osa-accentDark">
+          Share
+        </button>
+        <button id="share-copy-btn"
+          class="w-full py-3.5 rounded-2xl border border-osa-border bg-osa-card text-osa-text font-semibold text-sm tracking-wide active:scale-95 transition-all">
+          Copy Text
+        </button>
+      </div>
+
+      <button onclick="closeShareModal()" class="text-osa-muted text-xs tracking-widest uppercase py-2">
+        Skip for now
+      </button>
+    </div>
   </div>
 
   <script src="app.js"></script>

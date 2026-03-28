@@ -1,0 +1,23 @@
+{
+  "name": "Perfect Sand",
+  "short_name": "Perfect Sand",
+  "description": "Calm discipline, battle mode interventions, and Osa guidance for everyday control.",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#0b1214",
+  "theme_color": "#0b1214",
+  "icons": [
+    {
+      "src": "icon-192.svg",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "icon-512.svg",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}
