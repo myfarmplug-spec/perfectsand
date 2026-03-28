@@ -19,6 +19,7 @@ create table public.users (
   location        text,
   biggest_trigger text,
   onboarding_complete boolean default false,
+  user_plan       text not null default 'free' check (user_plan in ('free', 'premium')),
   created_at      timestamptz default now()
 );
 

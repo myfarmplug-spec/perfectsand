@@ -119,12 +119,17 @@ Deno.serve(async (req: Request) => {
     const currentBalance = tokenRow?.balance ?? 0;
     const newBalance = currentBalance + tokensToAdd;
 
-    // Credit tokens + log transaction
+    // Credit tokens, upgrade plan, log transaction
     await Promise.all([
       adminClient
         .from("tokens")
         .update({ balance: newBalance, last_updated: new Date().toISOString() })
         .eq("user_id", userId),
+
+      adminClient
+        .from("users")
+        .update({ user_plan: "premium" })
+        .eq("id", userId),
 
       adminClient.from("token_transactions").insert({
         user_id: userId,

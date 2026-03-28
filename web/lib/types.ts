@@ -66,6 +66,7 @@ export type DbUser = {
   location: string | null;
   biggest_trigger: string | null;
   onboarding_complete: boolean;
+  user_plan: "free" | "premium";
   created_at: string;
 };
 
